@@ -7,27 +7,27 @@ Vendor-neutral observability platform providing **metrics, logs, and traces** ac
 ```
  COMPUTE INSTANCES (~500)
  ┌──────────────────────────────────────────────────────────────┐
- │  EKS · ECS Fargate · ECS EC2 · EC2 · On-Prem (Linux/Win)   │
+ │  EKS · ECS Fargate · ECS EC2 · EC2 · On-Prem (Linux/Win)     │
  │                                                              │
- │  App + OTel SDK Auto-Instrumentation (Java/.NET/Node.js)    │
+ │  App + OTel SDK Auto-Instrumentation (Java/.NET/Node.js)     │
  │  Legacy Apps → Agent-only (host metrics, logs, events)       │
- │              ┌───────────────────┐                           │
- │              │  OTel Agent (local)│                          │
- │              └────────┬──────────┘                           │
+ │              ┌─────────────────────┐                         │
+ │              │  OTel Agent (local) │                         │
+ │              └────────┬────────────┘                         │
  └───────────────────────┼──────────────────────────────────────┘
                          │ OTLP gRPC :4317
-           ┌─────────────┴─────────────┐
+           ┌─────────────┴──────────────┐
            │     OTel Gateway (3x)      │
            │  Tail sampling · Filtering │
-           └─────────────┬─────────────┘
+           └─────────────┬──────────────┘
                          │ OTLP HTTP
      ┌───────────────────┼───────────────────┐
      │                   │                   │
- ┌───▼─────┐     ┌──────▼──┐      ┌────────▼─┐
- │  Mimir  │     │  Loki   │      │  Tempo   │
- │ Metrics │     │  Logs   │      │  Traces  │
- └───┬─────┘     └────┬────┘      └────┬─────┘
-     └────────────┬────┴────────────────┘
+ ┌───▼─────┐     ┌──────▼──┐      ┌────────▼──┐
+ │  Mimir  │     │  Loki   │      │  Tempo    │
+ │ Metrics │     │  Logs   │      │  Traces   │
+ └───┬─────┘     └────┬────┘      └─────┬─────┘
+     └────────────┬───┴─────────────────┘
               S3 Buckets
      ┌────────────▼────────────────────┐
      │           Grafana               │
@@ -39,16 +39,16 @@ See [docs/architecture.md](docs/architecture.md) for the full architecture, comp
 
 ## Supported Platforms
 
-| Platform | Agent Deployment | Config |
-|---|---|---|
-| EKS Linux | DaemonSet via OTel Operator | `helm/otel-operator/collector-daemonset.yaml` |
-| ECS Fargate | Sidecar container | `configs/otel-agent-fargate.yaml` |
-| ECS EC2 Linux | ECS daemon task | `configs/otel-agent-linux.yaml` |
-| ECS EC2 Windows | Windows Service (MSI) | `configs/otel-agent-windows.yaml` |
-| EC2 Linux | systemd service | `configs/otel-agent-linux.yaml` |
-| EC2 Windows | Windows Service (MSI) | `configs/otel-agent-windows.yaml` |
-| On-prem Linux | systemd (Ansible) | `ansible/templates/otel-agent-linux.yaml.j2` |
-| On-prem Windows | Windows Service (Ansible) | `ansible/templates/otel-agent-windows.yaml.j2` |
+| Platform        | Agent Deployment            | Config                                         |
+| --------------- | --------------------------- | ---------------------------------------------- |
+| EKS Linux       | DaemonSet via OTel Operator | `helm/otel-operator/collector-daemonset.yaml`  |
+| ECS Fargate     | Sidecar container           | `configs/otel-agent-fargate.yaml`              |
+| ECS EC2 Linux   | ECS daemon task             | `configs/otel-agent-linux.yaml`                |
+| ECS EC2 Windows | Windows Service (MSI)       | `configs/otel-agent-windows.yaml`              |
+| EC2 Linux       | systemd service             | `configs/otel-agent-linux.yaml`                |
+| EC2 Windows     | Windows Service (MSI)       | `configs/otel-agent-windows.yaml`              |
+| On-prem Linux   | systemd (Ansible)           | `ansible/templates/otel-agent-linux.yaml.j2`   |
+| On-prem Windows | Windows Service (Ansible)   | `ansible/templates/otel-agent-windows.yaml.j2` |
 
 ## Prerequisites
 
@@ -102,6 +102,7 @@ make test-pipeline       # Send synthetic telemetry via telemetrygen
 ```
 
 Access Grafana:
+
 ```bash
 kubectl -n observability port-forward svc/grafana 3000:80
 # Open http://localhost:3000
@@ -156,9 +157,9 @@ kubectl -n observability port-forward svc/grafana 3000:80
 Add annotations to pod specs — no code changes required:
 
 ```yaml
-instrumentation.opentelemetry.io/inject-java: "true"      # Java
-instrumentation.opentelemetry.io/inject-dotnet: "true"     # .NET Core
-instrumentation.opentelemetry.io/inject-nodejs: "true"     # Node.js
+instrumentation.opentelemetry.io/inject-java: "true" # Java
+instrumentation.opentelemetry.io/inject-dotnet: "true" # .NET Core
+instrumentation.opentelemetry.io/inject-nodejs: "true" # Node.js
 ```
 
 ### ECS / EC2 / On-Prem
@@ -166,6 +167,7 @@ instrumentation.opentelemetry.io/inject-nodejs: "true"     # Node.js
 Set environment variables in task definitions or service configs:
 
 **Java:**
+
 ```
 JAVA_TOOL_OPTIONS=-javaagent:/opt/opentelemetry-javaagent.jar
 OTEL_SERVICE_NAME=my-service
@@ -173,6 +175,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 ```
 
 **.NET Core:**
+
 ```
 CORECLR_ENABLE_PROFILING=1
 CORECLR_PROFILER={918728DD-259F-4A6A-AC2B-B85E1B658318}
@@ -181,6 +184,7 @@ OTEL_SERVICE_NAME=my-service
 ```
 
 **Node.js:**
+
 ```
 NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
 OTEL_SERVICE_NAME=my-service
@@ -190,6 +194,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 ### Legacy Apps (no code changes possible)
 
 Agent-only collection — no distributed tracing, but provides:
+
 - Host metrics (CPU, memory, disk, network)
 - Application log file parsing
 - Windows Event Logs
@@ -198,12 +203,12 @@ Agent-only collection — no distributed tracing, but provides:
 
 ## Sampling Strategy
 
-| Traffic Type | Head (Agent) | Tail (Gateway) | Net Result |
-|---|---|---|---|
-| Error spans | 100% | 100% | All errors kept |
-| High latency (>1s) | 50% | 100% | ~50% kept |
-| Normal traffic | 5% | 2% | ~0.1% kept |
-| Health checks | 0% | N/A | Dropped |
+| Traffic Type       | Head (Agent) | Tail (Gateway) | Net Result      |
+| ------------------ | ------------ | -------------- | --------------- |
+| Error spans        | 100%         | 100%           | All errors kept |
+| High latency (>1s) | 50%          | 100%           | ~50% kept       |
+| Normal traffic     | 5%           | 2%             | ~0.1% kept      |
+| Health checks      | 0%           | N/A            | Dropped         |
 
 ## Alerting
 
