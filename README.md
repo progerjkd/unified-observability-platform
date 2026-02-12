@@ -154,7 +154,7 @@ The platform follows a **three-layer architecture**:
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="https://grafana.com/static/assets/img/logos/grafana-tempo.svg" width="80" alt="Tempo">
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="https://grafana.com/static/img/logos/logo-grafana.svg" width="80" alt="Grafana">
+  <img src="https://grafana.com/static/img/menu/grafana2.svg" width="80" alt="Grafana">
 </p>
 
 The decision to use the **Grafana LGTM stack** (Loki, Grafana, Tempo, Mimir) was driven by five key requirements:
@@ -324,7 +324,7 @@ Each backend has a purpose-built, expressive query language:
 ### Grafana — Visualization and Alerting
 
 <p align="center">
-  <img src="https://grafana.com/static/img/logos/logo-grafana.svg" width="120" alt="Grafana">
+  <img src="https://grafana.com/static/img/menu/grafana2.svg" width="120" alt="Grafana">
 </p>
 
 [Grafana](https://grafana.com/oss/grafana/) serves as the **single pane of glass** for all observability data. It is pre-configured with datasources for Mimir, Loki, and Tempo, with full cross-signal correlation enabled.
