@@ -1,0 +1,150 @@
+# OpenTelemetry Collector Agent — EKS DaemonSet
+# NOTE: This is the standalone config version. The Operator-managed version
+# is in helm/otel-operator/collector-daemonset.yaml (recommended).
+# Use this only if deploying without the OTel Operator.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk: {}
+      filesystem:
+        exclude_mount_points:
+          mount_points: ["/proc", "/sys", "/dev", "/etc/hosts"]
+          match_type: strict
+      network: {}
+      load: {}
+
+  kubeletstats:
+    collection_interval: 30s
+    auth_type: serviceAccount
+    endpoint: "https://${env:K8S_NODE_NAME}:10250"
+    insecure_skip_verify: true
+    metric_groups:
+      - node
+      - pod
+      - container
+
+  filelog:
+    include:
+      - /var/log/pods/*/*/*.log
+    exclude:
+      - /var/log/pods/observability_otel-*/*/*.log
+      - /var/log/pods/kube-system_*/*/*.log
+    start_at: end
+    include_file_path: true
+    operators:
+      - type: container
+        id: container-parser
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
+
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
+
+  k8sattributes:
+    auth_type: serviceAccount
+    passthrough: false
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.deployment.name
+        - k8s.statefulset.name
+        - k8s.daemonset.name
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.node.name
+        - k8s.container.name
+      labels:
+        - tag_name: app
+          key: app
+          from: pod
+        - tag_name: app.kubernetes.io/name
+          key: app.kubernetes.io/name
+          from: pod
+        - tag_name: version
+          key: version
+          from: pod
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: k8s.pod.ip
+      - sources:
+          - from: connection
+
+  resourcedetection:
+    detectors: [env, eks]
+    timeout: 5s
+
+  resource:
+    attributes:
+      - key: host.type
+        value: eks
+        action: upsert
+      - key: cloud.platform
+        value: aws_eks
+        action: upsert
+
+exporters:
+  otlp:
+    endpoint: "otel-gateway.observability.svc:4317"
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 5000
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 30s
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+  file_storage:
+    directory: /var/lib/otelcol/queue
+    timeout: 10s
+
+service:
+  extensions: [health_check, file_storage]
+  pipelines:
+    metrics:
+      receivers: [otlp, hostmetrics, kubeletstats]
+      processors: [memory_limiter, k8sattributes, resourcedetection, resource, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp, filelog]
+      processors: [memory_limiter, k8sattributes, resourcedetection, resource, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, k8sattributes, resourcedetection, resource, batch]
+      exporters: [otlp]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: "0.0.0.0:8888"

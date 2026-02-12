@@ -1,0 +1,23 @@
+[Unit]
+Description=OpenTelemetry Collector Contrib
+Documentation=https://opentelemetry.io/docs/collector/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=otelcol
+Group=otelcol
+ExecStart={{ otel_install_dir }}/{{ otel_binary }} --config {{ otel_config_dir }}/config.yaml
+Restart=always
+RestartSec=5
+MemoryMax=512M
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=otelcol
+
+Environment=OTEL_RESOURCE_ATTRIBUTES=host.name={{ ansible_hostname }}
+
+[Install]
+WantedBy=multi-user.target

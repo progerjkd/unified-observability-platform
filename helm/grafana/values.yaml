@@ -1,0 +1,180 @@
+# Grafana
+# Helm chart: grafana/grafana
+# Docs: https://grafana.com/docs/grafana/latest/
+
+replicas: 2
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+# Persistence for dashboard storage
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClassName: gp3
+
+# Use PostgreSQL for HA dashboard storage (optional; default is SQLite)
+# database:
+#   type: postgres
+#   host: grafana-db.observability.svc:5432
+#   name: grafana
+#   user: grafana
+#   password: ${grafana_db_password}
+
+# Admin credentials
+adminUser: admin
+adminPassword: ${grafana_admin_password}
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+
+# Ingress (optional, for external access)
+ingress:
+  enabled: true
+  ingressClassName: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+  hosts:
+    - grafana.observability.internal
+  tls:
+    - secretName: grafana-tls
+      hosts:
+        - grafana.observability.internal
+
+# ------- Data Sources (provisioned automatically) -------
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      # Prometheus / Mimir for metrics
+      - name: Mimir
+        type: prometheus
+        access: proxy
+        url: http://mimir-query-frontend.observability.svc:8080/prometheus
+        isDefault: true
+        jsonData:
+          httpMethod: POST
+          exemplarTraceIdDestinations:
+            - name: traceID
+              datasourceUid: tempo
+          timeInterval: "30s"
+
+      # Loki for logs
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki-read.observability.svc:3100
+        jsonData:
+          derivedFields:
+            - datasourceUid: tempo
+              matcherRegex: '"traceID":"(\w+)"'
+              name: TraceID
+              url: '$${__value.raw}'
+            - datasourceUid: tempo
+              matcherRegex: 'trace_id=(\w+)'
+              name: TraceID
+              url: '$${__value.raw}'
+
+      # Tempo for traces
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        access: proxy
+        url: http://tempo-query-frontend.observability.svc:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-1h"
+            spanEndTimeShift: "1h"
+            filterByTraceID: true
+            filterBySpanID: false
+          tracesToMetrics:
+            datasourceUid: mimir
+            spanStartTimeShift: "-1h"
+            spanEndTimeShift: "1h"
+          serviceMap:
+            datasourceUid: mimir
+          nodeGraph:
+            enabled: true
+          lokiSearch:
+            datasourceUid: loki
+
+      # Alertmanager
+      - name: Alertmanager
+        type: alertmanager
+        access: proxy
+        url: http://alertmanager.observability.svc:9093
+        jsonData:
+          implementation: prometheus
+
+# ------- Dashboard Providers -------
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: "Observability"
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+# ------- Dashboards from ConfigMaps -------
+dashboardsConfigMaps:
+  default: grafana-dashboards
+
+# ------- Alerting configuration -------
+alerting:
+  contactpoints.yaml:
+    apiVersion: 1
+    contactPoints:
+      - orgId: 1
+        name: ops-team
+        receivers:
+          - uid: pagerduty
+            type: pagerduty
+            settings:
+              integrationKey: ${pagerduty_integration_key}
+              severity: critical
+          - uid: slack
+            type: slack
+            settings:
+              url: ${slack_webhook_url}
+              title: |
+                {{ `{{ template "default.title" . }}` }}
+              text: |
+                {{ `{{ template "default.message" . }}` }}
+
+  policies.yaml:
+    apiVersion: 1
+    policies:
+      - orgId: 1
+        receiver: ops-team
+        group_by:
+          - grafana_folder
+          - alertname
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+
+# ------- Grafana configuration -------
+grafana.ini:
+  server:
+    root_url: https://grafana.observability.internal
+  auth:
+    disable_login_form: false
+  users:
+    allow_sign_up: false
+  feature_toggles:
+    enable: traceToMetrics correlations

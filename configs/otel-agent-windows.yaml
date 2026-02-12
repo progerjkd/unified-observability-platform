@@ -1,0 +1,129 @@
+# OpenTelemetry Collector Agent — Windows (EC2 / On-Prem / ECS EC2 Windows)
+# Deployed as Windows Service via MSI or Ansible
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk: {}
+      filesystem: {}
+      network: {}
+      process:
+        include:
+          match_type: regexp
+          names: ["java.*", "dotnet.*", "node.*", "w3wp.*"]
+        mute_process_exe_error: true
+        mute_process_io_error: true
+
+  # Windows Event Log — Application channel
+  windowseventlog/application:
+    channel: Application
+    start_at: end
+
+  # Windows Event Log — System channel
+  windowseventlog/system:
+    channel: System
+    start_at: end
+
+  # IIS metrics (for .NET Framework apps running on IIS)
+  iis:
+    collection_interval: 30s
+
+  # Optional: file-based log collection for apps that write to files
+  filelog:
+    include:
+      - 'C:\logs\*.log'
+      - 'C:\inetpub\logs\LogFiles\**\*.log'
+    start_at: end
+    include_file_path: true
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
+
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
+
+  resourcedetection:
+    detectors: [env, ec2, system]
+    timeout: 5s
+    override: false
+    ec2:
+      tags:
+        - Name
+        - Environment
+        - Service
+        - Team
+
+  resource:
+    attributes:
+      - key: host.type
+        value: ec2-windows
+        action: upsert
+      - key: os.type
+        value: windows
+        action: upsert
+
+exporters:
+  otlp:
+    endpoint: "gateway.observability.internal:4317"
+    tls:
+      insecure: false
+      ca_file: 'C:\ProgramData\otelcol\ca.pem'
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 5000
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 30s
+      max_elapsed_time: 5m
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+  file_storage:
+    directory: 'C:\ProgramData\otelcol\queue'
+    timeout: 10s
+
+service:
+  extensions: [health_check, file_storage]
+  pipelines:
+    metrics:
+      receivers: [otlp, hostmetrics, iis]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp, windowseventlog/application, windowseventlog/system, filelog]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: "0.0.0.0:8888"

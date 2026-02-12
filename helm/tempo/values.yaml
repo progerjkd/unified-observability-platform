@@ -1,0 +1,130 @@
+# Grafana Tempo - Distributed mode
+# Helm chart: grafana/tempo-distributed
+# Docs: https://grafana.com/docs/tempo/latest/
+
+tempo:
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: ${org_prefix}-obs-tempo
+        endpoint: s3.us-east-1.amazonaws.com
+        region: us-east-1
+        # Authentication via IRSA
+
+  retention: 336h  # 14 days
+
+  # Metrics generator: create RED metrics from traces
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: "http://mimir-distributor.observability.svc:8080/api/v1/push"
+    processor:
+      service_graphs:
+        enabled: true
+        dimensions:
+          - service.namespace
+          - deployment.environment
+      span_metrics:
+        enabled: true
+        dimensions:
+          - service.namespace
+          - deployment.environment
+          - http.method
+          - http.status_code
+
+  # Global overrides
+  global_overrides:
+    defaults:
+      ingestion:
+        rate_limit_bytes: 15000000  # 15MB/s
+        burst_size_bytes: 20000000  # 20MB
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
+
+  # Memberlist for ring coordination
+  memberlist:
+    bind_addr:
+      - "0.0.0.0"
+
+# ------- Component sizing for ~500 instances -------
+
+ingester:
+  replicas: 3
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: gp3
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: ingester
+
+distributor:
+  replicas: 2
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+compactor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "1"
+      memory: "4Gi"
+
+querier:
+  replicas: 2
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+queryFrontend:
+  replicas: 2
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+metricsGenerator:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+
+# Gateway for receiving OTLP data
+gateway:
+  enabled: true
+  replicas: 1
+
+# Service account with IRSA
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ${tempo_irsa_role_arn}

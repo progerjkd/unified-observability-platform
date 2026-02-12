@@ -1,0 +1,102 @@
+# OpenTelemetry Collector Gateway
+# NOTE: This is the standalone config version. The Helm-managed version
+# is embedded in helm/otel-gateway/values.yaml (recommended).
+# Use this only if deploying the gateway outside of Helm.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+        max_recv_msg_size_mib: 8
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 3072
+    spike_limit_mib: 512
+
+  batch:
+    send_batch_size: 2000
+    send_batch_max_size: 3000
+    timeout: 2s
+
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 100000
+    expected_new_traces_per_sec: 1000
+    policies:
+      - name: errors-always
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: high-latency
+        type: latency
+        latency:
+          threshold_ms: 1000
+      - name: probabilistic-sample
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 2
+
+  filter/healthcheck:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.route"] == "/health"'
+        - 'attributes["http.route"] == "/healthz"'
+        - 'attributes["http.route"] == "/ready"'
+        - 'attributes["http.route"] == "/readyz"'
+        - 'attributes["http.route"] == "/livez"'
+        - 'attributes["http.target"] == "/health"'
+        - 'attributes["url.path"] == "/health"'
+
+  transform/normalize:
+    error_mode: ignore
+    trace_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.environment"], attributes["deployment.environment"]) where attributes["deployment.environment"] != nil
+
+exporters:
+  otlphttp/mimir:
+    endpoint: "http://mimir-distributor.observability.svc:8080/otlp"
+    tls:
+      insecure: true
+
+  otlphttp/loki:
+    endpoint: "http://loki-write.observability.svc:3100/otlp"
+    tls:
+      insecure: true
+
+  otlphttp/tempo:
+    endpoint: "http://tempo-distributor.observability.svc:4318"
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/normalize, batch]
+      exporters: [otlphttp/mimir]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/normalize, batch]
+      exporters: [otlphttp/loki]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/healthcheck, tail_sampling, transform/normalize, batch]
+      exporters: [otlphttp/tempo]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: "0.0.0.0:8888"

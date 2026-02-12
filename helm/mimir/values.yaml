@@ -1,0 +1,146 @@
+# Grafana Mimir - Distributed mode
+# Helm chart: grafana/mimir-distributed
+# Docs: https://grafana.com/docs/mimir/latest/
+
+mimir:
+  structuredConfig:
+    common:
+      storage:
+        backend: s3
+        s3:
+          endpoint: s3.us-east-1.amazonaws.com
+          bucket_name: ${org_prefix}-obs-mimir
+          region: us-east-1
+          # Authentication via IRSA (no explicit credentials needed)
+
+    limits:
+      max_global_series_per_user: 500000
+      ingestion_rate: 100000
+      ingestion_burst_size: 200000
+      max_label_names_per_series: 30
+      max_label_value_length: 2048
+
+    blocks_storage:
+      tsdb:
+        retention_period: 24h
+        block_ranges_period: [2h]
+      bucket_store:
+        sync_interval: 15m
+        ignore_blocks_within: 10h
+
+    # Enable OTLP ingestion
+    distributor:
+      otlp_config:
+        convert_all_attributes: true
+
+    # Compactor settings
+    compactor:
+      data_dir: /data/compactor
+      sharding_ring:
+        kvstore:
+          store: memberlist
+
+    # Ruler for alerting rules
+    ruler:
+      alertmanager_url: http://alertmanager.observability.svc:9093
+      enable_api: true
+      rule_path: /data/rules
+
+  # ------- Component sizing for ~500 instances -------
+
+  ingester:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "1"
+        memory: "4Gi"
+      limits:
+        cpu: "2"
+        memory: "8Gi"
+    persistentVolume:
+      size: 50Gi
+      storageClass: gp3
+    nodeSelector:
+      observability/role: mimir-ingester
+    tolerations:
+      - key: observability/role
+        value: mimir-ingester
+        effect: NoSchedule
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: ingester
+
+  distributor:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+
+  compactor:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "1"
+        memory: "4Gi"
+      limits:
+        cpu: "2"
+        memory: "8Gi"
+    persistentVolume:
+      size: 100Gi
+      storageClass: gp3
+
+  querier:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+
+  query_frontend:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+
+  store_gateway:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+    persistentVolume:
+      size: 20Gi
+      storageClass: gp3
+
+  ruler:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+
+# Service account with IRSA annotation
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ${mimir_irsa_role_arn}
+
+# Memberlist for ring-based coordination
+memberlist:
+  service:
+    publishNotReadyAddresses: true

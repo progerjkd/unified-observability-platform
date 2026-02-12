@@ -1,0 +1,9 @@
+# Copy this file to terraform.tfvars and fill in values
+
+aws_region      = "us-east-1"
+environment     = "prod"
+org_prefix      = "myorg"          # Used in S3 bucket names (must be globally unique)
+cluster_name    = "obs-lgtm"
+cluster_version = "1.31"
+vpc_cidr        = "10.0.0.0/16"
+onprem_cidrs    = ["172.16.0.0/12"]

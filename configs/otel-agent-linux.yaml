@@ -1,0 +1,154 @@
+# OpenTelemetry Collector Agent — Linux (EC2 / On-Prem)
+# Deployed as systemd service via user_data or Ansible
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk: {}
+      filesystem:
+        exclude_mount_points:
+          mount_points: ["/proc", "/sys", "/dev"]
+          match_type: strict
+      network: {}
+      load: {}
+      process:
+        include:
+          match_type: regexp
+          names: ["java.*", "dotnet.*", "node.*", "python.*"]
+        mute_process_exe_error: true
+        mute_process_io_error: true
+
+  filelog:
+    include:
+      - /var/log/app/*.log
+      - /var/log/app/**/*.log
+    exclude:
+      - /var/log/app/*debug*.log
+    start_at: end
+    include_file_path: true
+    include_file_name: true
+    operators:
+      # Try JSON first
+      - type: router
+        routes:
+          - output: json-parser
+            expr: 'body matches "^\\{"'
+        default: regex-parser
+
+      - type: json_parser
+        id: json-parser
+        timestamp:
+          parse_from: attributes.timestamp
+          layout_type: gotime
+          layout: "2006-01-02T15:04:05.000Z07:00"
+        severity:
+          parse_from: attributes.level
+
+      - type: regex_parser
+        id: regex-parser
+        regex: '^(?P<timestamp>\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*Z?)\s+(?P<severity>\w+)\s+(?P<message>.*)$'
+        timestamp:
+          parse_from: attributes.timestamp
+          layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+        severity:
+          parse_from: attributes.severity
+
+  # Syslog receiver for legacy apps
+  syslog:
+    tcp:
+      listen_address: "0.0.0.0:54527"
+    protocol: rfc5424
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
+
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
+
+  resourcedetection:
+    detectors: [env, ec2, system]
+    timeout: 5s
+    override: false
+    ec2:
+      tags:
+        - Name
+        - Environment
+        - Service
+        - Team
+
+  # Add common resource attributes
+  resource:
+    attributes:
+      - key: host.type
+        value: ec2-linux
+        action: upsert
+
+exporters:
+  otlp:
+    endpoint: "gateway.observability.internal:4317"
+    tls:
+      insecure: false
+      ca_file: /etc/otelcol-contrib/ca.pem
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 5000
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 30s
+      max_elapsed_time: 5m
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+  file_storage:
+    directory: /var/lib/otelcol/queue
+    timeout: 10s
+    compaction:
+      on_start: true
+      on_rebound: true
+      directory: /tmp/otelcol
+
+service:
+  extensions: [health_check, file_storage]
+  pipelines:
+    metrics:
+      receivers: [otlp, hostmetrics]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp, filelog, syslog]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: "0.0.0.0:8888"

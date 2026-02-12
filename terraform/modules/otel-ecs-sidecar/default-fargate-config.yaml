@@ -1,0 +1,59 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  awsecscontainermetrics:
+    collection_interval: 30s
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 300
+    spike_limit_mib: 75
+
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
+
+  resourcedetection:
+    detectors: [env, ecs]
+    ecs:
+      resource_attributes:
+        aws.ecs.task.family:
+          enabled: true
+        aws.ecs.cluster:
+          enabled: true
+        cloud.region:
+          enabled: true
+        cloud.availability_zone:
+          enabled: true
+
+exporters:
+  otlp:
+    endpoint: "gateway.observability.internal:4317"
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp, awsecscontainermetrics]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlp]

@@ -1,0 +1,93 @@
+# OpenTelemetry Collector Agent — ECS Fargate Sidecar
+# Deployed as sidecar container in ECS Fargate task definitions
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  # ECS container metrics from task metadata endpoint
+  awsecscontainermetrics:
+    collection_interval: 30s
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 300
+    spike_limit_mib: 75
+
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
+
+  resourcedetection:
+    detectors: [env, ecs]
+    timeout: 5s
+    ecs:
+      resource_attributes:
+        aws.ecs.task.family:
+          enabled: true
+        aws.ecs.task.revision:
+          enabled: true
+        aws.ecs.cluster:
+          enabled: true
+        aws.ecs.task.id:
+          enabled: true
+        aws.ecs.container.arn:
+          enabled: true
+        cloud.region:
+          enabled: true
+        cloud.availability_zone:
+          enabled: true
+
+  resource:
+    attributes:
+      - key: host.type
+        value: ecs-fargate
+        action: upsert
+      - key: cloud.platform
+        value: aws_ecs
+        action: upsert
+
+exporters:
+  otlp:
+    endpoint: "gateway.observability.internal:4317"
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 2000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 30s
+      max_elapsed_time: 5m
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp, awsecscontainermetrics]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: "0.0.0.0:8888"

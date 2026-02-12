@@ -1,0 +1,87 @@
+---
+# Install OpenTelemetry Collector on on-premises Windows hosts
+- name: Install OpenTelemetry Collector on Windows
+  hosts: onprem_windows
+  vars:
+    otel_version: "0.96.0"
+    otel_msi_url: "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v{{ otel_version }}/otelcol-contrib_{{ otel_version }}_windows_amd64.msi"
+    otel_service_name: "OpenTelemetry Collector"
+    otel_config_dir: 'C:\ProgramData\OpenTelemetry Collector'
+    otel_queue_dir: 'C:\ProgramData\otelcol\queue'
+    gateway_endpoint: "gateway.observability.internal:4317"
+    ca_cert_source: "files/ca.pem"
+
+  tasks:
+    - name: Create temp directory
+      win_file:
+        path: C:\Temp
+        state: directory
+
+    - name: Create config directory
+      win_file:
+        path: "{{ otel_config_dir }}"
+        state: directory
+
+    - name: Create persistent queue directory
+      win_file:
+        path: "{{ otel_queue_dir }}"
+        state: directory
+
+    - name: Check if OTel Collector is installed
+      win_service:
+        name: "{{ otel_service_name }}"
+      register: otel_service
+      failed_when: false
+
+    - name: Download OTel Collector MSI
+      win_get_url:
+        url: "{{ otel_msi_url }}"
+        dest: 'C:\Temp\otelcol-contrib.msi'
+        force: false
+      when: otel_service.state is not defined or otel_service.state != 'running'
+
+    - name: Install OTel Collector
+      win_package:
+        path: 'C:\Temp\otelcol-contrib.msi'
+        state: present
+        arguments: /quiet /norestart
+      when: otel_service.state is not defined or otel_service.state != 'running'
+      notify: restart otel service
+
+    - name: Deploy CA certificate
+      win_copy:
+        src: "{{ ca_cert_source }}"
+        dest: 'C:\ProgramData\otelcol\ca.pem'
+      notify: restart otel service
+
+    - name: Deploy OTel Collector config
+      win_template:
+        src: templates/otel-agent-windows.yaml.j2
+        dest: '{{ otel_config_dir }}\config.yaml'
+      notify: restart otel service
+
+    - name: Ensure OTel Collector service is running
+      win_service:
+        name: "{{ otel_service_name }}"
+        state: started
+        start_mode: auto
+
+    - name: Wait for health check
+      win_uri:
+        url: "http://localhost:13133/health"
+        status_code: 200
+      register: health_check
+      retries: 5
+      delay: 5
+      until: health_check.status_code == 200
+
+    - name: Clean up MSI installer
+      win_file:
+        path: 'C:\Temp\otelcol-contrib.msi'
+        state: absent
+
+  handlers:
+    - name: restart otel service
+      win_service:
+        name: "{{ otel_service_name }}"
+        state: restarted

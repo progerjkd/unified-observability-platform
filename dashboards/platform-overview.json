@@ -1,0 +1,205 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Unified view of all compute platforms in the observability estate",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Platform Health Summary",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "targets": [
+        {
+          "expr": "count(up{job=~\"otel-agent.*\"} == 1)",
+          "legendFormat": "Healthy Agents"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 400 },
+              { "color": "green", "value": 480 }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "title": "Agents by Platform",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "targets": [
+        {
+          "expr": "count by (host_type) (up{job=~\"otel-agent.*\"})",
+          "legendFormat": "{{ host_type }}"
+        }
+      ]
+    },
+    {
+      "title": "Agent Health by Platform",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "targets": [
+        {
+          "expr": "count by (host_type) (up{job=~\"otel-agent.*\"} == 1)",
+          "legendFormat": "Healthy",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "count by (host_type) (up{job=~\"otel-agent.*\"} == 0)",
+          "legendFormat": "Unhealthy",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ]
+    },
+    {
+      "title": "CPU Utilization by Platform",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "targets": [
+        {
+          "expr": "avg by (host_type) (system_cpu_utilization)",
+          "legendFormat": "{{ host_type }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "Memory Utilization by Platform",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "targets": [
+        {
+          "expr": "avg by (host_type) (system_memory_utilization)",
+          "legendFormat": "{{ host_type }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "OTel Gateway Throughput",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "targets": [
+        {
+          "expr": "sum(rate(otelcol_receiver_accepted_spans_total{receiver=\"otlp\"}[5m]))",
+          "legendFormat": "Accepted spans/s"
+        },
+        {
+          "expr": "sum(rate(otelcol_receiver_refused_spans_total{receiver=\"otlp\"}[5m]))",
+          "legendFormat": "Refused spans/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "title": "OTel Gateway Queue Size",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "mimir" },
+      "targets": [
+        {
+          "expr": "sum(otelcol_exporter_queue_size)",
+          "legendFormat": "Queue size"
+        },
+        {
+          "expr": "sum(otelcol_exporter_queue_capacity)",
+          "legendFormat": "Queue capacity"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["observability", "platform", "overview"],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "mimir" },
+        "query": "label_values(up, deployment_environment)",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Platform Overview",
+  "uid": "obs-platform-overview"
+}

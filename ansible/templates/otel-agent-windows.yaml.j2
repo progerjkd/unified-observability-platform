@@ -1,0 +1,142 @@
+# OpenTelemetry Collector Agent — On-Prem Windows
+# Managed by Ansible — template variables from playbook vars
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk: {}
+      filesystem: {}
+      network: {}
+      process:
+        include:
+          match_type: regexp
+          names: ["java.*", "dotnet.*", "node.*", "w3wp.*"]
+        mute_process_exe_error: true
+        mute_process_io_error: true
+
+  windowseventlog/application:
+    channel: Application
+    start_at: end
+
+  windowseventlog/system:
+    channel: System
+    start_at: end
+
+{% if enable_iis | default(false) %}
+  iis:
+    collection_interval: 30s
+{% endif %}
+
+  filelog:
+    include:
+{% for log_path in log_paths | default(['C:\\logs\\*.log']) %}
+      - '{{ log_path }}'
+{% endfor %}
+    start_at: end
+    include_file_path: true
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
+
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
+
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 5s
+
+  resource:
+    attributes:
+      - key: host.type
+        value: onprem-windows
+        action: upsert
+      - key: host.name
+        value: "{{ ansible_hostname }}"
+        action: upsert
+      - key: host.datacenter
+        value: "{{ datacenter | default('dc1') }}"
+        action: upsert
+      - key: os.type
+        value: windows
+        action: upsert
+{% if service_name is defined %}
+      - key: service.name
+        value: "{{ service_name }}"
+        action: upsert
+{% endif %}
+{% if environment is defined %}
+      - key: deployment.environment
+        value: "{{ environment }}"
+        action: upsert
+{% endif %}
+
+exporters:
+  otlp:
+    endpoint: "{{ gateway_endpoint }}"
+    tls:
+      insecure: false
+      ca_file: 'C:\ProgramData\otelcol\ca.pem'
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 5000
+      storage: file_storage
+    retry_on_failure:
+      enabled: true
+      initial_interval: 100ms
+      max_interval: 30s
+      max_elapsed_time: 5m
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+  file_storage:
+    directory: '{{ otel_queue_dir }}'
+    timeout: 10s
+
+service:
+  extensions: [health_check, file_storage]
+  pipelines:
+    metrics:
+      receivers:
+        - otlp
+        - hostmetrics
+{% if enable_iis | default(false) %}
+        - iis
+{% endif %}
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp, windowseventlog/application, windowseventlog/system, filelog]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [otlp]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: "0.0.0.0:8888"

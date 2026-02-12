@@ -1,0 +1,84 @@
+# Alertmanager configuration
+# Routes alerts from Mimir ruler and Loki ruler to notification channels
+
+global:
+  resolve_timeout: 5m
+
+# Inhibition rules: suppress less severe alerts when critical ones fire
+inhibit_rules:
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal:
+      - alertname
+      - service
+      - environment
+
+# Route tree
+route:
+  receiver: default-slack
+  group_by: [alertname, service, environment]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Critical alerts go to PagerDuty
+    - receiver: pagerduty-critical
+      matchers:
+        - severity = critical
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Warning alerts go to Slack
+    - receiver: ops-slack
+      matchers:
+        - severity = warning
+
+    # Infrastructure alerts
+    - receiver: infra-slack
+      matchers:
+        - team = infrastructure
+      group_by: [alertname, host]
+
+receivers:
+  - name: default-slack
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: "#obs-alerts"
+        title: '{{ template "slack.default.title" . }}'
+        text: '{{ template "slack.default.text" . }}'
+        send_resolved: true
+
+  - name: ops-slack
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: "#obs-alerts-warning"
+        title: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
+        text: >-
+          *Service:* {{ .GroupLabels.service }}
+          *Environment:* {{ .GroupLabels.environment }}
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+        send_resolved: true
+
+  - name: infra-slack
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL}"
+        channel: "#obs-alerts-infra"
+        send_resolved: true
+
+  - name: pagerduty-critical
+    pagerduty_configs:
+      - routing_key: "${PAGERDUTY_ROUTING_KEY}"
+        severity: critical
+        description: '{{ .GroupLabels.alertname }}: {{ .GroupLabels.service }}'
+        details:
+          environment: '{{ .GroupLabels.environment }}'
+          service: '{{ .GroupLabels.service }}'
+          summary: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+          runbook: '{{ range .Alerts }}{{ .Annotations.runbook_url }}{{ end }}'
+
+# Templates
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"
