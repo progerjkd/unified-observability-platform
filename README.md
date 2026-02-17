@@ -26,6 +26,7 @@ A vendor-neutral, production-grade observability platform providing **metrics, l
 - [Cost Analysis](#cost-analysis)
 - [Infrastructure as Code](#infrastructure-as-code)
 - [Quick Start](#quick-start)
+- [Demo Mode](#demo-mode)
 - [Repository Structure](#repository-structure)
 
 ---
@@ -643,6 +644,35 @@ kubectl -n observability port-forward svc/grafana 3000:80
 
 ---
 
+## Demo Mode
+
+A cost-optimized demo environment (~$100-150/month vs ~$2,840/month production) that runs all platform features on 3 Spot `t4g.medium` nodes. Auto-instrumentation, tail sampling, cross-signal correlation, and alerting all work identically — only replica counts and resource limits are reduced.
+
+```bash
+# Deploy infrastructure (~20 min)
+make tf-init && make tf-plan-demo && make tf-apply
+
+# Configure kubectl
+aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1
+
+# Deploy LGTM + OTel stack (~15 min)
+make helm-repos            # One-time
+make deploy-all-demo
+
+# Deploy sample apps + load generator
+make deploy-demo-apps
+
+# Access Grafana — http://localhost:3000 (admin / demo-admin-2025)
+kubectl -n observability port-forward svc/grafana 3000:80
+
+# Teardown (automated: empties S3, destroys infra, cleans orphaned EBS)
+make teardown-demo
+```
+
+The [demo/](demo/) directory contains sample applications (auto-instrumented Node.js e-commerce shop, legacy nginx with agent-only collection, K6 load generator), Grafana query cheat sheets, and full setup instructions. See [demo/README.md](demo/README.md) for details.
+
+---
+
 ## Repository Structure
 
 ```
@@ -676,12 +706,24 @@ kubectl -n observability port-forward svc/grafana 3000:80
 │   ├── platform-overview.json          # Agent health across all platforms
 │   ├── service-health.json             # RED metrics per service
 │   └── infrastructure.json             # Host-level CPU/memory/disk/network
+├── demo/
+│   ├── README.md                       # Demo setup instructions and query cheat sheet
+│   ├── quick-demo-app.yaml             # Standalone demo app (lightweight alternative)
+│   └── sample-apps/
+│       ├── nodejs-shop/                # 3-tier e-commerce (frontend → product-api → inventory)
+│       ├── legacy-nginx/               # Agent-only collection (nginx + exporter + OTel sidecar)
+│       └── load-generator.yaml         # K6 load generator (5 VUs, 5% error traffic)
+├── scripts/
+│   ├── empty-s3-only.sh               # Empty versioned S3 buckets (pre-destroy)
+│   └── cleanup-ebs-volumes.sh         # Delete orphaned EBS volumes (post-destroy)
 ├── ansible/
 │   ├── playbooks/                      # install-otel-linux.yml, install-otel-windows.yml
 │   ├── templates/                      # Jinja2 agent configs + systemd unit
 │   └── inventory/                      # hosts.yml (edit with your on-prem hosts)
 ├── docs/
-│   └── architecture.md                 # Full architecture documentation
+│   ├── architecture.md                 # Full architecture documentation
+│   ├── DEMO_GUIDE.md                   # 90-minute panel interview presentation guide
+│   └── DEMO_DATA_GUIDE.md             # Data generation and Grafana query guide
 └── Makefile                            # All deployment targets
 ```
 
@@ -702,6 +744,14 @@ make validate                # Validate all OTel Collector configs
 make test-pipeline           # Send test telemetry via telemetrygen
 make install-alerts          # Upload alert rules to Mimir
 make install-dashboards      # Create Grafana dashboard ConfigMap
+
+# Demo mode
+make tf-plan-demo            # Plan with demo sizing (small Spot instances)
+make deploy-all-demo         # Full deploy with minimal resources
+make deploy-demo-apps        # Deploy sample apps + load generator
+make destroy-demo-apps       # Remove sample apps
+make teardown-demo           # Destroy everything (S3 + infra + orphaned EBS)
+make cleanup-orphaned-resources  # Clean up leftover S3/EBS without destroying
 ```
 
 ### Deployment Order
