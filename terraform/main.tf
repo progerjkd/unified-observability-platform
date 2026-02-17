@@ -31,11 +31,7 @@ provider "aws" {
   region = var.aws_region
 
   default_tags {
-    tags = {
-      Project     = "observability"
-      ManagedBy   = "terraform"
-      Environment = var.environment
-    }
+    tags = local.common_tags
   }
 }
 
@@ -81,12 +77,14 @@ module "networking" {
 module "eks" {
   source = "./aws/eks-lgtm-cluster"
 
-  cluster_name       = var.cluster_name
-  cluster_version    = var.cluster_version
-  vpc_id             = module.networking.vpc_id
-  private_subnet_ids = module.networking.private_subnet_ids
-  kms_key_arn        = aws_kms_key.observability.arn
-  common_tags        = local.common_tags
+  cluster_name                   = var.cluster_name
+  cluster_version                = var.cluster_version
+  cluster_endpoint_public_access = var.cluster_endpoint_public_access
+  vpc_id                         = module.networking.vpc_id
+  private_subnet_ids             = module.networking.private_subnet_ids
+  kms_key_arn                    = aws_kms_key.observability.arn
+  eks_node_groups                = var.eks_node_groups
+  common_tags                    = local.common_tags
 }
 
 # ------- S3 Buckets -------
@@ -118,5 +116,7 @@ locals {
     Project     = "observability"
     ManagedBy   = "terraform"
     Environment = var.environment
+    CostCenter  = "observability-${var.environment}"
+    Owner       = var.org_prefix
   }
 }

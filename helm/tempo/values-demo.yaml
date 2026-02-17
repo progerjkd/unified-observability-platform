@@ -1,0 +1,68 @@
+# Tempo demo overrides — minimal sizing for sample-app load only
+# Usage: helm upgrade --install tempo grafana/tempo-distributed \
+#          -f helm/tempo/values.yaml -f helm/tempo/values-demo.yaml
+
+ingester:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+  persistence:
+    enabled: true
+    size: 5Gi
+  topologySpreadConstraints: []
+
+distributor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+compactor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+querier:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+queryFrontend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "250m"
+      memory: "256Mi"
+
+metricsGenerator:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+
+gateway:
+  enabled: true
+  replicas: 1

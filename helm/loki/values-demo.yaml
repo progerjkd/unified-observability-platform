@@ -1,0 +1,51 @@
+# Loki demo overrides — minimal sizing for sample-app load only
+# Usage: helm upgrade --install loki grafana/loki \
+#          -f helm/loki/values.yaml -f helm/loki/values-demo.yaml
+
+loki:
+  limits_config:
+    ingestion_rate_mb: 10
+    ingestion_burst_size_mb: 20
+
+write:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+  persistence:
+    size: 5Gi
+  topologySpreadConstraints: []
+
+read:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+backend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+  persistence:
+    size: 5Gi
+
+gateway:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"

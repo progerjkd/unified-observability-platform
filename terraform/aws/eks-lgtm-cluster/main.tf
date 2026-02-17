@@ -13,105 +13,66 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.private_subnet_ids
 
-  cluster_endpoint_public_access  = false
+  cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = true
 
   enable_cluster_creator_admin_permissions = true
 
+  # Core addons — EBS CSI driver managed separately to avoid circular IRSA dependency
   cluster_addons = {
-    coredns                = { most_recent = true }
-    kube-proxy             = { most_recent = true }
-    vpc-cni                = { most_recent = true }
-    aws-ebs-csi-driver     = { most_recent = true }
+    coredns    = { most_recent = true }
+    kube-proxy = { most_recent = true }
+    vpc-cni    = { most_recent = true }
   }
 
-  eks_managed_node_groups = {
-    # Mimir ingesters — memory-optimized for TSDB writes
-    mimir-ingesters = {
-      name            = "mimir-ingesters"
-      instance_types  = ["r7g.xlarge"]
-      ami_type        = "AL2023_ARM_64_STANDARD"
-      capacity_type   = "ON_DEMAND"
-      min_size        = 3
-      max_size        = 5
-      desired_size    = 3
-
-      labels = {
-        "observability/role" = "mimir-ingester"
-      }
-
-      taints = [{
-        key    = "observability/role"
-        value  = "mimir-ingester"
-        effect = "NO_SCHEDULE"
-      }]
-
-      block_device_mappings = {
-        xvda = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size = 100
-            volume_type = "gp3"
-            iops        = 3000
-            throughput   = 125
-          }
-        }
-      }
-    }
-
-    # General workloads — distributors, queriers, Grafana, gateways
-    general = {
-      name            = "general"
-      instance_types  = ["m7g.large"]
-      ami_type        = "AL2023_ARM_64_STANDARD"
-      capacity_type   = "ON_DEMAND"
-      min_size        = 4
-      max_size        = 8
-      desired_size    = 6
-
-      labels = {
-        "observability/role" = "general"
-      }
-
-      block_device_mappings = {
-        xvda = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size = 50
-            volume_type = "gp3"
-          }
-        }
-      }
-    }
-
-    # Loki/Tempo write path — can use Spot for cost savings
-    write-path = {
-      name            = "write-path"
-      instance_types  = ["m7g.large", "m6g.large"]
-      ami_type        = "AL2023_ARM_64_STANDARD"
-      capacity_type   = "SPOT"
-      min_size        = 3
-      max_size        = 6
-      desired_size    = 4
-
-      labels = {
-        "observability/role" = "write-path"
-      }
-
-      block_device_mappings = {
-        xvda = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size = 100
-            volume_type = "gp3"
-            iops        = 3000
-          }
-        }
-      }
-    }
-  }
+  # Node groups are passed in via variable — see var.eks_node_groups
+  # Demo mode: override with demo.tfvars (2x t4g.medium Spot, ~$50/mo)
+  # Prod mode: default (13 nodes across 3 groups, ~$1,500/mo)
+  eks_managed_node_groups = var.eks_node_groups
 
   tags = var.common_tags
+}
+
+# ------- EBS CSI Driver (managed outside EKS module to avoid circular dep) -------
+
+# IRSA role — needs OIDC provider from EKS, so must be created after cluster
+data "aws_iam_policy_document" "ebs_csi_assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [module.eks.oidc_provider_arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name               = "${var.cluster_name}-ebs-csi-driver"
+  assume_role_policy = data.aws_iam_policy_document.ebs_csi_assume.json
+  tags               = var.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  role       = aws_iam_role.ebs_csi.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+}
+
+# Addon — depends on both the cluster and the IRSA role
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name                = module.eks.cluster_name
+  addon_name                  = "aws-ebs-csi-driver"
+  resolve_conflicts_on_create = "OVERWRITE"
+  service_account_role_arn    = aws_iam_role.ebs_csi.arn
+
+  depends_on = [module.eks]
 }
 
 # EBS storage class for persistent volumes (Mimir/Loki ingesters)
@@ -128,11 +89,16 @@ resource "kubernetes_storage_class" "gp3" {
   volume_binding_mode = "WaitForFirstConsumer"
 
   parameters = {
-    type      = "gp3"
-    iops      = "3000"
-    throughput = "125"
-    encrypted = "true"
-    kmsKeyId  = var.kms_key_arn
+    type                        = "gp3"
+    iops                        = "3000"
+    throughput                  = "125"
+    encrypted                   = "true"
+    kmsKeyId                    = var.kms_key_arn
+    "tagSpecification_1"        = "Name={{ .PVCNamespace }}/{{ .PVCName }}"
+    "tagSpecification_2"        = "Project=${lookup(var.common_tags, "Project", "observability")}"
+    "tagSpecification_3"        = "Environment=${lookup(var.common_tags, "Environment", "prod")}"
+    "tagSpecification_4"        = "ManagedBy=kubernetes"
+    "tagSpecification_5"        = "CostCenter=${lookup(var.common_tags, "CostCenter", "observability")}"
   }
 
   depends_on = [module.eks]

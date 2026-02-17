@@ -1,0 +1,37 @@
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+terraform.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*lock.hcl
+
+# Secrets / credentials
+*.pem
+*.key
+.env
+
+# Presentation / interview materials
+STEM-2025-Q3-Supplement-vF.pdf
+STEM-2025-Q3-Supplement-vF/
+demo/*.pptx
+demo/*.pdf
+demo/*.png
+demo/*.py
+
+# Python
+__pycache__/
+*.pyc

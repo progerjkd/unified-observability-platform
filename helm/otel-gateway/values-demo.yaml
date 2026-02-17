@@ -1,0 +1,29 @@
+# OTel Gateway demo overrides — single replica, no HPA
+# Usage: helm upgrade --install otel-gateway open-telemetry/opentelemetry-collector \
+#          -f helm/otel-gateway/values.yaml -f helm/otel-gateway/values-demo.yaml
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "250m"
+    memory: "512Mi"
+
+autoscaling:
+  enabled: false
+
+topologySpreadConstraints: []
+
+config:
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_mib: 400
+      spike_limit_mib: 100
+    tail_sampling:
+      decision_wait: 10s
+      num_traces: 10000
+      expected_new_traces_per_sec: 100

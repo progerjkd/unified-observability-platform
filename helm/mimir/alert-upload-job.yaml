@@ -1,0 +1,198 @@
+# Kubernetes Job to upload alert rules to Mimir using mimirtool
+# Usage: kubectl apply -f alert-upload-job.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mimir-alert-rules
+  namespace: observability
+data:
+  alert-rules.yaml: |
+    groups:
+      # ------- Service Health (RED Metrics from Tempo) -------
+      - name: service-health
+        interval: 30s
+        rules:
+          - alert: HighErrorRate
+            expr: |
+              (
+                sum(rate(traces_spanmetrics_calls_total{status_code="STATUS_CODE_ERROR"}[5m])) by (service_name, deployment_environment)
+                /
+                sum(rate(traces_spanmetrics_calls_total[5m])) by (service_name, deployment_environment)
+              ) > 0.05
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Service {{ $labels.service_name }} error rate > 5%"
+              description: "Error rate is {{ $value | humanizePercentage }} in {{ $labels.deployment_environment }}"
+              runbook_url: "https://runbooks.internal/high-error-rate"
+
+          - alert: HighLatencyP99
+            expr: |
+              histogram_quantile(0.99,
+                sum(rate(traces_spanmetrics_latency_bucket[5m])) by (le, service_name, deployment_environment)
+              ) > 2000
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Service {{ $labels.service_name }} p99 latency > 2s"
+              description: "P99 latency is {{ $value | humanizeDuration }} in {{ $labels.deployment_environment }}"
+
+          - alert: TrafficDrop
+            expr: |
+              sum(rate(traces_spanmetrics_calls_total[5m])) by (service_name, deployment_environment)
+              < 0.1 * sum(rate(traces_spanmetrics_calls_total[5m] offset 1h)) by (service_name, deployment_environment)
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Service {{ $labels.service_name }} traffic dropped >90% vs 1h ago"
+
+      # ------- Infrastructure Health -------
+      - name: infrastructure
+        interval: 60s
+        rules:
+          - alert: HighCPU
+            expr: system_cpu_utilization > 0.9
+            for: 10m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "Host {{ $labels.host_name }} CPU > 90%"
+              description: "CPU utilization is {{ $value | humanizePercentage }}"
+
+          - alert: HighMemory
+            expr: system_memory_utilization > 0.9
+            for: 10m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "Host {{ $labels.host_name }} memory > 90%"
+              description: "Memory utilization is {{ $value | humanizePercentage }}"
+
+          - alert: DiskSpaceLow
+            expr: system_filesystem_utilization{mountpoint!~"/proc.*|/sys.*|/dev.*"} > 0.85
+            for: 15m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "Host {{ $labels.host_name }} disk {{ $labels.mountpoint }} > 85% full"
+              description: "Disk utilization is {{ $value | humanizePercentage }}"
+
+          - alert: DiskSpaceCritical
+            expr: system_filesystem_utilization{mountpoint!~"/proc.*|/sys.*|/dev.*"} > 0.95
+            for: 5m
+            labels:
+              severity: critical
+              team: infrastructure
+            annotations:
+              summary: "Host {{ $labels.host_name }} disk {{ $labels.mountpoint }} > 95% full"
+
+      # ------- OTel Pipeline Health -------
+      - name: otel-pipeline
+        interval: 30s
+        rules:
+          - alert: OTelAgentDown
+            expr: up{job=~"otel-agent.*"} == 0
+            for: 5m
+            labels:
+              severity: warning
+              team: infrastructure
+            annotations:
+              summary: "OTel agent down on {{ $labels.instance }}"
+
+          - alert: OTelGatewayHighQueueUsage
+            expr: |
+              otelcol_exporter_queue_size / otelcol_exporter_queue_capacity > 0.8
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "OTel gateway exporter queue > 80% capacity"
+              description: "Queue usage is {{ $value | humanizePercentage }}"
+
+          - alert: OTelGatewayExportFailures
+            expr: rate(otelcol_exporter_send_failed_spans_total[5m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "OTel gateway failing to export spans"
+              description: "{{ $value }} failed spans/sec"
+
+          - alert: OTelGatewayHighDropRate
+            expr: |
+              rate(otelcol_processor_dropped_spans_total[5m])
+              / (rate(otelcol_processor_dropped_spans_total[5m]) + rate(otelcol_processor_accepted_spans_total[5m]))
+              > 0.1
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "OTel gateway dropping > 10% of spans"
+
+      # ------- LGTM Backend Health -------
+      - name: lgtm-backend
+        interval: 60s
+        rules:
+          - alert: MimirIngesterUnhealthy
+            expr: cortex_ring_members{name="ingester", state="Unhealthy"} > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Mimir has unhealthy ingesters"
+
+          - alert: LokiIngestionRateHigh
+            expr: |
+              sum(rate(loki_distributor_bytes_received_total[5m])) > 50e6
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Loki ingestion rate exceeding 50MB/s"
+
+          - alert: TempoCompactorNotRunning
+            expr: tempo_compactor_compactions_total == 0
+            for: 2h
+            labels:
+              severity: warning
+            annotations:
+              summary: "Tempo compactor has not run in 2 hours"
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mimir-upload-alerts
+  namespace: observability
+spec:
+  ttlSecondsAfterFinished: 300  # Auto-cleanup after 5 minutes
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: mimir-alert-uploader
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mimirtool
+          image: grafana/mimirtool:latest
+          args:
+            - rules
+            - load
+            - /rules/alert-rules.yaml
+            - --address=http://mimir-gateway.observability.svc:80
+            - --id=demo-tenant
+          volumeMounts:
+            - name: alert-rules
+              mountPath: /rules
+              readOnly: true
+      volumes:
+        - name: alert-rules
+          configMap:
+            name: mimir-alert-rules

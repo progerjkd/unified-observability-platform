@@ -7,9 +7,12 @@ loki:
 
   storage:
     type: s3
+    bucketNames:
+      chunks: odontoagil-obs-loki
+      ruler: odontoagil-obs-loki
+      admin: odontoagil-obs-loki
     s3:
       endpoint: s3.us-east-1.amazonaws.com
-      bucketnames: ${org_prefix}-obs-loki
       region: us-east-1
       # Authentication via IRSA
 
@@ -44,10 +47,6 @@ loki:
   rulerConfig:
     alertmanager_url: http://alertmanager.observability.svc:9093
     enable_api: true
-    storage:
-      type: s3
-      s3:
-        bucketnames: ${org_prefix}-obs-loki
 
 # ------- Component sizing for ~500 instances -------
 
@@ -107,4 +106,4 @@ gateway:
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: ${loki_irsa_role_arn}
+    eks.amazonaws.com/role-arn: arn:aws:iam::699475921438:role/obs-lgtm-demo-loki-s3-access

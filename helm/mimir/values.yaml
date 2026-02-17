@@ -28,11 +28,6 @@ mimir:
         sync_interval: 15m
         ignore_blocks_within: 10h
 
-    # Enable OTLP ingestion
-    distributor:
-      otlp_config:
-        convert_all_attributes: true
-
     # Compactor settings
     compactor:
       data_dir: /data/compactor

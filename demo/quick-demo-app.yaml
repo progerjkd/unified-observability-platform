@@ -1,0 +1,82 @@
+# Quick demo app using existing OTel auto-instrumented image
+# This generates traces, metrics, and logs immediately
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-app
+  namespace: default
+spec:
+  selector:
+    app: demo-app
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+  template:
+    metadata:
+      labels:
+        app: demo-app
+      annotations:
+        # Auto-instrumentation for Node.js
+        instrumentation.opentelemetry.io/inject-nodejs: "true"
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/open-telemetry/demo:latest-frontend
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-gateway.observability.svc:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "demo-frontend"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+---
+# Load generator - sends continuous traffic
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-generator
+  namespace: default
+spec:
+  ttlSecondsAfterFinished: 3600  # Auto-cleanup after 1 hour
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: curl
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting load generation..."
+              while true; do
+                curl -s http://demo-app:8080/ || true
+                curl -s http://demo-app:8080/products || true
+                curl -s http://demo-app:8080/cart || true
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"

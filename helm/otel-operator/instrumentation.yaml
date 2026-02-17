@@ -41,10 +41,8 @@ spec:
 
   # Resource attributes added to all telemetry
   resource:
+    addK8sUIDAttributes: true
     resourceAttributes:
-      deployment.environment:
-        value: prod
-      cloud.provider:
-        value: aws
-      cloud.platform:
-        value: aws_eks
+      deployment.environment: prod
+      cloud.provider: aws
+      cloud.platform: aws_eks

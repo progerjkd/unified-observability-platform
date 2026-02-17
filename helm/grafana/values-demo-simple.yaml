@@ -1,0 +1,70 @@
+# Grafana - Minimal demo configuration
+
+replicas: 1
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+persistence:
+  enabled: true
+  size: 2Gi
+  storageClassName: gp3
+
+# Admin credentials
+adminUser: admin
+adminPassword: demo-admin-2025
+
+# Datasources - connect to Mimir, Loki, Tempo
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Mimir
+        type: prometheus
+        url: http://mimir-gateway.observability.svc:80/prometheus
+        access: proxy
+        isDefault: true
+        jsonData:
+          timeInterval: 30s
+
+      - name: Loki
+        type: loki
+        url: http://loki-gateway.observability.svc:80
+        access: proxy
+        jsonData:
+          derivedFields:
+            - datasourceUid: Tempo
+              matcherRegex: "trace_id=(\\w+)"
+              name: TraceID
+              url: "$${__value.raw}"
+
+      - name: Tempo
+        type: tempo
+        url: http://tempo.observability.svc:3200
+        access: proxy
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: Loki
+            spanStartTimeShift: '-1h'
+            spanEndTimeShift: '1h'
+            filterByTraceID: true
+          tracesToMetrics:
+            datasourceUid: Mimir
+          serviceMap:
+            datasourceUid: Mimir
+
+# Disable unnecessary features for demo
+sidecar:
+  dashboards:
+    enabled: false
+  datasources:
+    enabled: false
+
+# No ingress for demo (use port-forward)
+ingress:
+  enabled: false

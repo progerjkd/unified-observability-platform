@@ -1,0 +1,52 @@
+# Tempo - Monolithic mode for demo (minimal footprint)
+
+tempo:
+  repository: grafana/tempo
+  tag: 2.6.1
+
+  storage:
+    trace:
+      backend: s3
+      s3:
+        bucket: odontoagil-obs-tempo
+        endpoint: s3.us-east-1.amazonaws.com
+        region: us-east-1
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+# Service account with IRSA
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::699475921438:role/obs-lgtm-demo-tempo-s3-access
+
+# Single pod deployment
+replicas: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClassName: gp3
+
+# Minimal gateway
+gateway:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"

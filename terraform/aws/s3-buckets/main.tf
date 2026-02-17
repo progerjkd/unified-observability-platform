@@ -50,6 +50,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "observability" {
   rule {
     id     = "archive-and-expire"
     status = "Enabled"
+    filter {}
 
     transition {
       days          = var.lifecycle_rules[each.key].ia_transition_days
@@ -69,6 +70,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "observability" {
   rule {
     id     = "abort-incomplete-multipart"
     status = "Enabled"
+    filter {}
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 7

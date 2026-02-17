@@ -1,0 +1,24 @@
+# Grafana demo overrides — single replica, minimal resources
+# Usage: helm upgrade --install grafana grafana/grafana \
+#          -f helm/grafana/values.yaml -f helm/grafana/values-demo.yaml
+
+replicas: 1
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "250m"
+    memory: "256Mi"
+
+persistence:
+  enabled: true
+  size: 2Gi
+
+# Disable ingress for demo — use port-forward instead
+ingress:
+  enabled: false
+
+# Simple admin password for demo
+adminPassword: "demo-admin-2025"

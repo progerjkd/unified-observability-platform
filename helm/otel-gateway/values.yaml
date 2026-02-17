@@ -2,6 +2,9 @@
 # Helm chart: open-telemetry/opentelemetry-collector
 # Docs: https://opentelemetry.io/docs/collector/deployment/gateway/
 
+image:
+  repository: otel/opentelemetry-collector-contrib
+
 mode: deployment
 replicaCount: 3
 
@@ -146,4 +149,10 @@ config:
         exporters: [otlphttp/tempo]
     telemetry:
       metrics:
-        address: "0.0.0.0:8888"
+        level: detailed
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: 0.0.0.0
+                  port: 8888

@@ -1,0 +1,84 @@
+# Mimir demo overrides — minimal sizing for sample-app load only
+# Usage: helm upgrade --install mimir grafana/mimir-distributed \
+#          -f helm/mimir/values.yaml -f helm/mimir/values-demo.yaml
+
+mimir:
+  structuredConfig:
+    limits:
+      max_global_series_per_user: 50000
+      ingestion_rate: 10000
+      ingestion_burst_size: 20000
+
+ingester:
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+  persistentVolume:
+    size: 5Gi
+
+distributor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+compactor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+  persistentVolume:
+    size: 5Gi
+
+querier:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+query_frontend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+store_gateway:
+  replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+  persistentVolume:
+    size: 5Gi
+
+ruler:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"

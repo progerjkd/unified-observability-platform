@@ -37,8 +37,8 @@ variable "lifecycle_rules" {
       expiration_days         = 180
     }
     obs-tempo = {
-      ia_transition_days      = 14
-      glacier_transition_days = 30
+      ia_transition_days      = 30
+      glacier_transition_days = 60
       expiration_days         = 90
     }
   }
