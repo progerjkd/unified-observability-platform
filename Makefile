@@ -65,6 +65,25 @@ kubeconfig-demo: ## Configure kubectl for the demo EKS cluster
 namespace: ## Create the observability namespace
 	kubectl create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
 
+# ------- ArgoCD (visualization) -------
+
+.PHONY: install-argocd-demo argocd-apps-demo argocd-password
+
+install-argocd-demo: ## Install ArgoCD (demo — minimal resources)
+	kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+	helm upgrade --install argocd argo/argo-cd \
+		--namespace argocd \
+		--values helm/argocd/values-demo.yaml \
+		--timeout $(HELM_TIMEOUT) \
+		--wait
+
+argocd-apps-demo: ## Create ArgoCD Applications for demo components
+	kubectl apply -f helm/argocd/applications-demo.yaml
+
+argocd-password: ## Retrieve ArgoCD admin password
+	@echo "ArgoCD admin password:"
+	@kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
+
 # ------- LGTM Backend (Helm) — Production -------
 
 .PHONY: install-mimir install-loki install-tempo install-grafana install-lgtm
@@ -280,6 +299,7 @@ helm-repos: ## Add required Helm repositories
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 	helm repo add autoscaler https://kubernetes.github.io/autoscaler
+	helm repo add argo https://argoproj.github.io/argo-helm
 	helm repo update
 
 # ------- Teardown -------

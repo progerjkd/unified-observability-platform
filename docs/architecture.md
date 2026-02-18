@@ -13,7 +13,20 @@ environment of ~500 compute instances spanning AWS and on-premises infrastructur
 
 ---
 
-## Architecture Diagram
+## Visual Architecture Diagrams
+
+Detailed AWS architecture diagrams are available in the [`diagrams/`](diagrams/) folder:
+
+- **[AWS Infrastructure](diagrams/aws_infrastructure.png)** - Complete infrastructure with VPC, EKS, S3, IAM, KMS
+- **[Data Flow](diagrams/data_flow.png)** - Telemetry flow from ~500 agents → gateway → LGTM backend
+- **[EKS Cluster](diagrams/eks_cluster.png)** - Node groups and LGTM component placement
+- **[Network Architecture](diagrams/network_architecture.png)** - VPC layout across 3 AZs with subnets and routing
+
+These diagrams are generated as code using the [diagrams](https://diagrams.mingrammer.com/) Python library. See [`diagrams/README.md`](diagrams/README.md) for regeneration instructions.
+
+---
+
+## Architecture Diagram (Text)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐

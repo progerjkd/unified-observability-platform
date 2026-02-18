@@ -1,0 +1,74 @@
+# ArgoCD — demo configuration (minimal resources, no HA)
+# Used for visualizing deployment health, not as primary deployment tool.
+# Chart: argo/argo-cd
+
+global:
+  domain: ""  # No ingress — access via port-forward
+
+# Minimal resources for demo
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  # Disable TLS for port-forward simplicity
+  extraArgs:
+    - --insecure
+
+repoServer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+applicationSet:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+notifications:
+  enabled: false
+
+dex:
+  enabled: false
+
+configs:
+  params:
+    # Disable TLS on server (access via port-forward only)
+    server.insecure: true
+  cm:
+    # Admin password is auto-generated — retrieve via:
+    #   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+    admin.enabled: true

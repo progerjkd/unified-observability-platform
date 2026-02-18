@@ -20,9 +20,17 @@ make deploy-all-demo
 # 5. Deploy sample apps + load generator
 make deploy-demo-apps
 
-# 6. Access Grafana
+# 6. (Optional) Install ArgoCD for deployment visualization
+make install-argocd-demo && make argocd-apps-demo
+
+# 7. Access Grafana
 kubectl -n observability port-forward svc/grafana 3000:80
 # Open http://localhost:3000 — Login: admin / demo-admin-2025
+
+# 8. Access ArgoCD (if installed)
+kubectl -n argocd port-forward svc/argocd-server 8080:80
+make argocd-password
+# Open http://localhost:8080 — Login: admin / <password from above>
 ```
 
 Dashboards will populate with data within ~5 minutes of deploying sample apps.
@@ -52,6 +60,7 @@ Demo mode deploys a minimal EKS cluster optimized for cost (~$100-150/month):
 | Tempo        | 1 replica, monolithic                 | Distributed with compactor             |
 | Grafana      | 1 replica                             | 2 replicas, HA                         |
 | OTel Gateway | 1 replica                             | 3 replicas with HPA                    |
+| ArgoCD       | 1 replica (optional, visualization)   | N/A (or dedicated GitOps cluster)      |
 
 All features (auto-instrumentation, tail sampling, cross-signal correlation) work identically.
 
@@ -161,6 +170,44 @@ Use this for a minimal demo when you don't need the full 3-tier architecture. De
 ```bash
 kubectl apply -f demo/quick-demo-app.yaml
 ```
+
+## ArgoCD — Deployment Visualization
+
+ArgoCD provides a visual dashboard showing all LGTM stack components with real-time health and sync status. Useful for demos to show everything is green at a glance.
+
+### Setup
+
+```bash
+make install-argocd-demo     # Install ArgoCD (~2 min)
+make argocd-apps-demo        # Create Application CRs for all components
+```
+
+### Access
+
+```bash
+kubectl -n argocd port-forward svc/argocd-server 8080:80
+make argocd-password         # Retrieve admin password
+# Open http://localhost:8080 — Login: admin / <password>
+```
+
+### What ArgoCD Shows
+
+8 Application tiles, each showing health status:
+
+| Application        | Source                         | Namespace      |
+| ------------------ | ------------------------------ | -------------- |
+| mimir              | grafana/mimir-distributed      | observability  |
+| loki               | grafana/loki                   | observability  |
+| tempo              | grafana/tempo-distributed      | observability  |
+| grafana            | grafana/grafana                | observability  |
+| otel-operator      | opentelemetry-operator         | observability  |
+| otel-gateway       | opentelemetry-collector        | observability  |
+| cluster-autoscaler | cluster-autoscaler             | kube-system    |
+| demo-apps          | demo/sample-apps/ (git)        | observability  |
+
+Each Application uses **multi-source**: Helm chart from upstream + values from this git repo. Click any tile to see the full resource topology (Deployments, StatefulSets, Pods, Services, PVCs).
+
+**Talking point**: "All deployment configuration lives in git. ArgoCD visualizes the live state and detects drift — if someone changes something in the cluster that doesn't match git, it shows as OutOfSync."
 
 ## Grafana Queries Cheat Sheet
 

@@ -65,6 +65,30 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
+# KMS permissions — required because the gp3 StorageClass uses KMS encryption
+resource "aws_iam_role_policy" "ebs_csi_kms" {
+  name = "ebs-csi-kms-access"
+  role = aws_iam_role.ebs_csi.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "kms:CreateGrant",
+        "kms:ListGrants",
+        "kms:RevokeGrant",
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ReEncrypt*",
+        "kms:GenerateDataKey*",
+        "kms:DescribeKey"
+      ]
+      Resource = var.kms_key_arn
+    }]
+  })
+}
+
 # Addon — depends on both the cluster and the IRSA role
 resource "aws_eks_addon" "ebs_csi" {
   cluster_name                = module.eks.cluster_name
@@ -73,6 +97,74 @@ resource "aws_eks_addon" "ebs_csi" {
   service_account_role_arn    = aws_iam_role.ebs_csi.arn
 
   depends_on = [module.eks]
+}
+
+# ------- Cluster Autoscaler IRSA -------
+
+data "aws_iam_policy_document" "cluster_autoscaler_assume" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [module.eks.oidc_provider_arn]
+    }
+
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(module.eks.oidc_provider, "https://", "")}:sub"
+      values   = ["system:serviceaccount:kube-system:cluster-autoscaler"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(module.eks.oidc_provider, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "cluster_autoscaler" {
+  name               = "${var.cluster_name}-cluster-autoscaler"
+  assume_role_policy = data.aws_iam_policy_document.cluster_autoscaler_assume.json
+  tags               = var.common_tags
+}
+
+resource "aws_iam_role_policy" "cluster_autoscaler" {
+  name = "cluster-autoscaler-policy"
+  role = aws_iam_role.cluster_autoscaler.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeScalingActivities",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:GetInstanceTypesFromInstanceRequirements",
+          "eks:DescribeNodegroup"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 # EBS storage class for persistent volumes (Mimir/Loki ingesters)

@@ -32,3 +32,8 @@ output "vpc_id" {
   description = "VPC ID"
   value       = module.networking.vpc_id
 }
+
+output "cluster_autoscaler_role_arn" {
+  description = "IAM role ARN for Cluster Autoscaler"
+  value       = module.eks.cluster_autoscaler_role_arn
+}

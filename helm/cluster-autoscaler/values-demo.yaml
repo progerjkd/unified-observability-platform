@@ -12,6 +12,8 @@ rbac:
   serviceAccount:
     create: true
     name: cluster-autoscaler
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::699475921438:role/obs-lgtm-demo-cluster-autoscaler
 
 extraArgs:
   # Scale down if node utilization is below 50%

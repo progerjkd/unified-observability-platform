@@ -1,0 +1,253 @@
+# ArgoCD Applications — Demo environment
+# Multi-source: Helm chart from upstream repo + values from this git repo.
+# After initial deploy via Makefile, ArgoCD adopts and tracks the releases.
+#
+# Usage:
+#   make install-argocd-demo     # Install ArgoCD
+#   make argocd-apps-demo        # Create these Applications
+#   kubectl -n argocd port-forward svc/argocd-server 8080:80
+#   # Open http://localhost:8080
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mimir
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/progerjkd/unified-observability-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: mimir-distributed
+      targetRevision: 5.*
+      helm:
+        valueFiles:
+          - $values/helm/mimir/values-demo.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/progerjkd/unified-observability-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: loki
+      targetRevision: 6.*
+      helm:
+        valueFiles:
+          - $values/helm/loki/values-demo-simple.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/progerjkd/unified-observability-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: tempo-distributed
+      targetRevision: 1.*
+      helm:
+        valueFiles:
+          - $values/helm/tempo/values-demo-distributed.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/progerjkd/unified-observability-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: grafana
+      targetRevision: 8.*
+      helm:
+        valueFiles:
+          - $values/helm/grafana/values-demo-simple.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/progerjkd/unified-observability-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-operator
+      targetRevision: 0.*
+      helm:
+        valueFiles:
+          - $values/helm/otel-operator/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-gateway
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/progerjkd/unified-observability-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-collector
+      targetRevision: 0.*
+      helm:
+        valueFiles:
+          - $values/helm/otel-gateway/values.yaml
+          - $values/helm/otel-gateway/values-demo.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-autoscaler
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/progerjkd/unified-observability-platform.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://kubernetes.github.io/autoscaler
+      chart: cluster-autoscaler
+      targetRevision: 9.*
+      helm:
+        valueFiles:
+          - $values/helm/cluster-autoscaler/values-demo.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/progerjkd/unified-observability-platform.git
+    path: demo/sample-apps
+    targetRevision: main
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

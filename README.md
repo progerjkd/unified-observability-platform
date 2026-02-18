@@ -665,11 +665,17 @@ make deploy-demo-apps
 # Access Grafana — http://localhost:3000 (admin / demo-admin-2025)
 kubectl -n observability port-forward svc/grafana 3000:80
 
+# (Optional) ArgoCD for deployment visualization
+make install-argocd-demo && make argocd-apps-demo
+kubectl -n argocd port-forward svc/argocd-server 8080:80
+make argocd-password  # Retrieve admin password
+# Access ArgoCD — http://localhost:8080
+
 # Teardown (automated: empties S3, destroys infra, cleans orphaned EBS)
 make teardown-demo
 ```
 
-The [demo/](demo/) directory contains sample applications (auto-instrumented Node.js e-commerce shop, legacy nginx with agent-only collection, K6 load generator), Grafana query cheat sheets, and full setup instructions. See [demo/README.md](demo/README.md) for details.
+The [demo/](demo/) directory contains sample applications (auto-instrumented Node.js e-commerce shop, legacy nginx with agent-only collection, K6 load generator), Grafana query cheat sheets, ArgoCD setup, and full instructions. See [demo/README.md](demo/README.md) for details.
 
 ---
 
@@ -694,7 +700,8 @@ The [demo/](demo/) directory contains sample applications (auto-instrumented Nod
 │   ├── grafana/                        # Grafana values (visualization + alerting)
 │   ├── otel-operator/                  # OTel Operator + Instrumentation CR + DaemonSet CR
 │   ├── otel-gateway/                   # OTel Gateway Collector (tail sampling, fan-out)
-│   └── cluster-autoscaler/             # Cluster Autoscaler values (demo — 2-4 node scaling)
+│   ├── cluster-autoscaler/             # Cluster Autoscaler values (demo — 2-4 node scaling)
+│   └── argocd/                         # ArgoCD values + Application CRs (deployment visualization)
 ├── configs/
 │   ├── otel-agent-linux.yaml           # Agent config: EC2/ECS EC2 Linux
 │   ├── otel-agent-windows.yaml         # Agent config: EC2/ECS EC2/on-prem Windows
@@ -752,6 +759,9 @@ make tf-plan-demo-ondemand   # Plan with On-Demand fallback (if Spot unavailable
 make deploy-all-demo         # Full deploy with autoscaler + minimal resources
 make deploy-demo-apps        # Deploy sample apps + load generator
 make destroy-demo-apps       # Remove sample apps
+make install-argocd-demo     # Install ArgoCD (deployment visualization)
+make argocd-apps-demo        # Create ArgoCD Application CRs
+make argocd-password         # Retrieve ArgoCD admin password
 make teardown-demo           # Destroy everything (S3 + infra + orphaned EBS)
 make cleanup-orphaned-resources  # Clean up leftover S3/EBS without destroying
 ```
