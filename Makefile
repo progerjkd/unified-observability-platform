@@ -124,6 +124,7 @@ install-lgtm: install-mimir install-loki install-tempo install-grafana ## Instal
 
 install-mimir-demo: ## Install Mimir (demo sizing)
 	helm upgrade --install mimir grafana/mimir-distributed \
+		--version 5.8.0 \
 		--namespace $(K8S_NAMESPACE) \
 		--values helm/mimir/values.yaml \
 		--values helm/mimir/values-demo.yaml \
