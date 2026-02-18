@@ -23,10 +23,10 @@ HELM_TIMEOUT   ?= 10m
 .PHONY: help
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-25s\033[0m %s\n", $$1, $$2}'
-
+x
 # ------- Infrastructure (Terraform) -------
 
-.PHONY: tf-init tf-plan tf-plan-demo tf-apply tf-apply-demo tf-destroy
+.PHONY: tf-init tf-plan tf-plan-demo tf-plan-demo-ondemand tf-apply tf-apply-demo tf-destroy
 
 tf-init: ## Initialize Terraform
 	cd terraform && terraform init
@@ -34,8 +34,11 @@ tf-init: ## Initialize Terraform
 tf-plan: ## Plan Terraform changes (production sizing)
 	cd terraform && terraform plan -out=tfplan
 
-tf-plan-demo: ## Plan Terraform changes (demo sizing — small instances)
+tf-plan-demo: ## Plan Terraform changes (demo sizing — Spot instances)
 	cd terraform && terraform plan -var-file=demo.tfvars -out=tfplan
+
+tf-plan-demo-ondemand: ## Plan Terraform changes (demo sizing — On-Demand fallback)
+	cd terraform && terraform plan -var-file=demo.tfvars -var-file=demo-ondemand.tfvars -out=tfplan
 
 tf-apply: ## Apply Terraform changes (production)
 	cd terraform && terraform apply tfplan
@@ -167,6 +170,17 @@ install-otel: install-otel-operator install-otel-gateway install-otel-daemonset 
 
 install-otel-demo: install-otel-operator install-otel-gateway-demo install-otel-daemonset install-instrumentation ## Install OTel collection (demo sizing)
 
+# ------- Cluster Autoscaler -------
+
+.PHONY: install-cluster-autoscaler-demo
+
+install-cluster-autoscaler-demo: ## Install Cluster Autoscaler (demo — scales 2-4 nodes)
+	helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
+		--namespace kube-system \
+		--values helm/cluster-autoscaler/values-demo.yaml \
+		--timeout $(HELM_TIMEOUT) \
+		--wait
+
 # ------- Alerting -------
 
 .PHONY: install-alerts install-dashboards
@@ -206,7 +220,7 @@ deploy-all: kubeconfig namespace install-lgtm install-otel install-alerts instal
 	@echo "Grafana: kubectl -n $(K8S_NAMESPACE) port-forward svc/grafana 3000:80"
 	@echo "Gateway: gateway.observability.internal:4317"
 
-deploy-all-demo: kubeconfig-demo namespace install-lgtm-demo install-otel-demo install-alerts install-dashboards ## Deploy everything (demo sizing — minimal resources)
+deploy-all-demo: kubeconfig-demo namespace install-cluster-autoscaler-demo install-lgtm-demo install-otel-demo install-alerts install-dashboards ## Deploy everything (demo sizing — minimal resources)
 	@echo ""
 	@echo "=== Deployment complete (DEMO) ==="
 	@echo "Grafana: kubectl -n $(K8S_NAMESPACE) port-forward svc/grafana 3000:80"
@@ -265,6 +279,7 @@ test-pipeline: ## Send test telemetry via telemetrygen
 helm-repos: ## Add required Helm repositories
 	helm repo add grafana https://grafana.github.io/helm-charts
 	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+	helm repo add autoscaler https://kubernetes.github.io/autoscaler
 	helm repo update
 
 # ------- Teardown -------

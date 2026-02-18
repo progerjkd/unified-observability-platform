@@ -646,7 +646,7 @@ kubectl -n observability port-forward svc/grafana 3000:80
 
 ## Demo Mode
 
-A cost-optimized demo environment (~$100-150/month vs ~$2,840/month production) that runs all platform features on 3 Spot `t4g.medium` nodes. Auto-instrumentation, tail sampling, cross-signal correlation, and alerting all work identically — only replica counts and resource limits are reduced.
+A cost-optimized demo environment (~$100-150/month vs ~$2,840/month production) that autoscales 2-4 Graviton Spot nodes. Includes Cluster Autoscaler for tight bin-packing — starts with 2 nodes and scales up only when pods are Pending. All features (auto-instrumentation, tail sampling, cross-signal correlation) work identically — only replica counts and resource limits are reduced.
 
 ```bash
 # Deploy infrastructure (~20 min)
@@ -693,7 +693,8 @@ The [demo/](demo/) directory contains sample applications (auto-instrumented Nod
 │   ├── tempo/                          # Grafana Tempo values (traces backend)
 │   ├── grafana/                        # Grafana values (visualization + alerting)
 │   ├── otel-operator/                  # OTel Operator + Instrumentation CR + DaemonSet CR
-│   └── otel-gateway/                   # OTel Gateway Collector (tail sampling, fan-out)
+│   ├── otel-gateway/                   # OTel Gateway Collector (tail sampling, fan-out)
+│   └── cluster-autoscaler/             # Cluster Autoscaler values (demo — 2-4 node scaling)
 ├── configs/
 │   ├── otel-agent-linux.yaml           # Agent config: EC2/ECS EC2 Linux
 │   ├── otel-agent-windows.yaml         # Agent config: EC2/ECS EC2/on-prem Windows
@@ -746,8 +747,9 @@ make install-alerts          # Upload alert rules to Mimir
 make install-dashboards      # Create Grafana dashboard ConfigMap
 
 # Demo mode
-make tf-plan-demo            # Plan with demo sizing (small Spot instances)
-make deploy-all-demo         # Full deploy with minimal resources
+make tf-plan-demo            # Plan with demo sizing (Spot, autoscaled 2-4 nodes)
+make tf-plan-demo-ondemand   # Plan with On-Demand fallback (if Spot unavailable)
+make deploy-all-demo         # Full deploy with autoscaler + minimal resources
 make deploy-demo-apps        # Deploy sample apps + load generator
 make destroy-demo-apps       # Remove sample apps
 make teardown-demo           # Destroy everything (S3 + infra + orphaned EBS)

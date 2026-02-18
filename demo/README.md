@@ -44,16 +44,32 @@ This automatically:
 
 Demo mode deploys a minimal EKS cluster optimized for cost (~$100-150/month):
 
-| Resource     | Demo                    | Production                             |
-| ------------ | ----------------------- | -------------------------------------- |
-| EKS nodes    | 3x t4g.medium Spot      | 13 nodes across 3 node groups          |
-| Mimir        | 1 replica, monolithic   | 3+ replicas, distributed               |
-| Loki         | 1 replica, SingleBinary | Distributed with read/write separation |
-| Tempo        | 1 replica, monolithic   | Distributed with compactor             |
-| Grafana      | 1 replica               | 2 replicas, HA                         |
-| OTel Gateway | 1 replica               | 3 replicas with HPA                    |
+| Resource     | Demo                                  | Production                             |
+| ------------ | ------------------------------------- | -------------------------------------- |
+| EKS nodes    | 2-4x Graviton Spot (autoscaled)       | 13 nodes across 3 node groups          |
+| Mimir        | 1 replica, monolithic                 | 3+ replicas, distributed               |
+| Loki         | 1 replica, SingleBinary               | Distributed with read/write separation |
+| Tempo        | 1 replica, monolithic                 | Distributed with compactor             |
+| Grafana      | 1 replica                             | 2 replicas, HA                         |
+| OTel Gateway | 1 replica                             | 3 replicas with HPA                    |
 
 All features (auto-instrumentation, tail sampling, cross-signal correlation) work identically.
+
+### Node Scaling Strategy
+
+The demo uses **Cluster Autoscaler** with tight packing to minimize cost:
+
+- **Starts with 2 nodes** — minimum viable for the LGTM stack
+- **Scales to 3-4 nodes** automatically when pods are Pending (e.g., after deploying sample apps)
+- **Scales back to 2 nodes** within ~10 min when load drops (utilization threshold: 50%)
+- **Diversified Spot pool** (`t4g.medium`, `t4g.large`, `m6g.medium`, `m7g.medium`) for availability
+
+If Spot capacity is unavailable, switch to On-Demand:
+
+```bash
+# Switch to On-Demand (~5 min, only replaces nodes)
+make tf-plan-demo-ondemand && make tf-apply
+```
 
 ## Directory Structure
 

@@ -1,0 +1,36 @@
+# Cluster Autoscaler — demo configuration
+# Starts with 2 nodes, scales up to 4 when pods are Pending,
+# scales back down aggressively when nodes are underutilized.
+
+autoDiscovery:
+  clusterName: obs-lgtm-demo
+
+awsRegion: us-east-1
+
+rbac:
+  create: true
+  serviceAccount:
+    create: true
+    name: cluster-autoscaler
+
+extraArgs:
+  # Scale down if node utilization is below 50%
+  scale-down-utilization-threshold: "0.5"
+  # Wait 5 min after scale-up before considering scale-down
+  scale-down-delay-after-add: 5m
+  # Remove underutilized nodes after 5 min
+  scale-down-unneeded-time: 5m
+  # Don't evict pods with local storage (PVCs are fine)
+  skip-nodes-with-local-storage: "false"
+  # Balance similar node groups (we only have one, but good practice)
+  balance-similar-node-groups: "true"
+  # Expander: pick cheapest option from available instance types
+  expander: least-waste
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi

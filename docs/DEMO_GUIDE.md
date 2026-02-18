@@ -25,7 +25,7 @@ For the demo, we'll deploy a **scaled-down version** of the production architect
 | Component | Production | Demo | Justification |
 |---|---|---|---|
 | **EKS cluster** | Multi-AZ, 3 node groups | Single-AZ, 1 node group | Reduce costs, same functionality |
-| **EKS nodes** | r7g.xlarge + m7g.large | 3x t4g.medium | 70% cost reduction |
+| **EKS nodes** | r7g.xlarge + m7g.large | 2-4x Graviton Spot (autoscaled) | 70% cost reduction |
 | **Mimir ingesters** | 3 replicas, dedicated nodes | 1 replica, shared nodes | Sufficient for demo load |
 | **Loki/Tempo** | 3/2/2 replicas | 1 replica each | Minimal HA for demo |
 | **Sample apps** | N/A | 3 deployments | Node.js + Python + legacy nginx |
@@ -39,44 +39,40 @@ Create `terraform/demo.tfvars`:
 aws_region      = "us-east-1"
 environment     = "demo"
 org_prefix      = "yourname"  # Your name for S3 bucket uniqueness
-cluster_name    = "obs-demo"
-cluster_version = "1.31"
-vpc_cidr        = "10.100.0.0/16"
+cluster_name    = "obs-lgtm-demo"
+cluster_version = "1.35"
+vpc_cidr        = "10.0.0.0/16"
 
-# Demo-specific: single AZ, smaller instance types
-availability_zones = ["us-east-1a"]
-node_instance_types = ["t4g.medium"]
-node_desired_size = 3
-node_min_size = 3
-node_max_size = 5
+# Diversified Spot pool + Cluster Autoscaler (2-4 nodes)
+eks_node_groups = {
+  demo = {
+    instance_types = ["t4g.medium", "t4g.large", "m6g.medium", "m7g.medium"]
+    capacity_type  = "SPOT"
+    min_size       = 2
+    max_size       = 4
+    desired_size   = 2  # Autoscaler adds nodes as needed
+  }
+}
 ```
 
 ### Deployment Steps (Do this 1–2 days before the interview)
 
 ```bash
 # 1. Deploy infrastructure (~20 minutes)
-cp terraform/demo.tfvars terraform/terraform.tfvars
 make tf-init
-make tf-apply
+make tf-plan-demo && make tf-apply
 
 # 2. Configure kubectl
-make kubeconfig
+aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1 --profile odontoagil-dev
 
-# 3. Deploy LGTM stack (~15 minutes)
+# 3. Deploy everything: autoscaler + LGTM + OTel + alerts + dashboards (~15 minutes)
 make helm-repos
-make install-lgtm
+make deploy-all-demo
 
-# 4. Deploy OTel collection layer (~5 minutes)
-make install-otel
+# 4. Deploy sample applications + load generator
+make deploy-demo-apps
 
-# 5. Deploy sample applications (see next section)
-kubectl apply -f demo/sample-apps/
-
-# 6. Deploy alerts and dashboards
-make install-alerts
-make install-dashboards
-
-# 7. Port-forward Grafana (keep running)
+# 5. Port-forward Grafana (keep running)
 kubectl -n observability port-forward svc/grafana 3000:80
 ```
 

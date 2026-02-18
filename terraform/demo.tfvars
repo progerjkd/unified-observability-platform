@@ -14,16 +14,16 @@ vpc_cidr                       = "10.0.0.0/16"
 onprem_cidrs                   = ["172.16.0.0/12"]
 cluster_endpoint_public_access = true  # Allow kubectl/Terraform from laptop
 
-# Single small node group — 2x t4g.medium Spot (~$50/mo compute)
+# Single small node group — Spot with diversified pool, autoscaler manages scaling
 eks_node_groups = {
   demo = {
     name            = "demo"
-    instance_types  = ["t4g.medium"]
+    instance_types  = ["t4g.medium", "t4g.large", "m6g.medium", "m7g.medium"]
     ami_type        = "AL2023_ARM_64_STANDARD"
     capacity_type   = "SPOT"
     min_size        = 2
     max_size        = 4
-    desired_size    = 3
+    desired_size    = 2
     labels          = { "observability/role" = "general" }
     block_device_mappings = {
       xvda = {
