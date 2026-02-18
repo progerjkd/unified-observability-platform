@@ -6,7 +6,7 @@ This directory contains everything needed to run a cost-optimized demo of the un
 
 ```bash
 # 1. Deploy AWS infrastructure (~20 min)
-make tf-init && make tf-plan-demo && make tf-apply
+make tf-init && make tf-plan-demo && make tf-apply-demo
 
 # 2. Configure kubectl
 aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1 --profile odontoagil-dev
@@ -34,6 +34,7 @@ make teardown-demo
 ```
 
 This automatically:
+
 1. Empties S3 buckets (all object versions and delete markers)
 2. Removes the Kubernetes namespace from Terraform state (avoids timeout)
 3. Runs `terraform destroy`
@@ -43,14 +44,14 @@ This automatically:
 
 Demo mode deploys a minimal EKS cluster optimized for cost (~$100-150/month):
 
-| Resource | Demo | Production |
-|---|---|---|
-| EKS nodes | 3x t4g.medium Spot | 13 nodes across 3 node groups |
-| Mimir | 1 replica, monolithic | 3+ replicas, distributed |
-| Loki | 1 replica, SingleBinary | Distributed with read/write separation |
-| Tempo | 1 replica, monolithic | Distributed with compactor |
-| Grafana | 1 replica | 2 replicas, HA |
-| OTel Gateway | 1 replica | 3 replicas with HPA |
+| Resource     | Demo                    | Production                             |
+| ------------ | ----------------------- | -------------------------------------- |
+| EKS nodes    | 3x t4g.medium Spot      | 13 nodes across 3 node groups          |
+| Mimir        | 1 replica, monolithic   | 3+ replicas, distributed               |
+| Loki         | 1 replica, SingleBinary | Distributed with read/write separation |
+| Tempo        | 1 replica, monolithic   | Distributed with compactor             |
+| Grafana      | 1 replica               | 2 replicas, HA                         |
+| OTel Gateway | 1 replica               | 3 replicas with HPA                    |
 
 All features (auto-instrumentation, tail sampling, cross-signal correlation) work identically.
 
@@ -94,6 +95,7 @@ annotations:
 The Operator injects an init container that copies the Node.js SDK into the app container and sets `NODE_OPTIONS` to auto-load it. The result is full distributed tracing, RED metrics, and log correlation with zero application changes.
 
 **What to show in Grafana:**
+
 - **Tempo**: Search for service `frontend` — trace waterfall shows `frontend -> product-api -> inventory` call chain
 - **Mimir**: `rate(http_server_duration_count{service_name="frontend"}[5m])` — request rate metrics
 - **Loki**: `{service_name="frontend"}` — logs with trace IDs for cross-signal correlation
@@ -102,13 +104,14 @@ The Operator injects an init container that copies the Node.js SDK into the app 
 
 Demonstrates **agent-only collection** for applications that cannot be modified or instrumented. The pod runs three containers:
 
-| Container | Image | Purpose |
-|---|---|---|
-| `nginx` | `nginx:1.25-alpine` | The "legacy" app — cannot be changed |
-| `nginx-exporter` | `nginx/nginx-prometheus-exporter:1.1` | Sidecar exposing Prometheus `/metrics` |
-| `otel-agent` | `otel/opentelemetry-collector-contrib` | Sidecar collecting logs + metrics |
+| Container        | Image                                  | Purpose                                |
+| ---------------- | -------------------------------------- | -------------------------------------- |
+| `nginx`          | `nginx:1.25-alpine`                    | The "legacy" app — cannot be changed   |
+| `nginx-exporter` | `nginx/nginx-prometheus-exporter:1.1`  | Sidecar exposing Prometheus `/metrics` |
+| `otel-agent`     | `otel/opentelemetry-collector-contrib` | Sidecar collecting logs + metrics      |
 
 The OTel agent sidecar is configured with three receivers:
+
 - **filelog** — Parses JSON-formatted nginx access logs, extracts `method`, `status`, `request_time`, `user_agent`
 - **prometheus** — Scrapes `nginx-exporter` for connection count, request rate, response codes
 - **hostmetrics** — Collects CPU, memory, and network from the pod
@@ -116,6 +119,7 @@ The OTel agent sidecar is configured with three receivers:
 All telemetry is tagged with `service.name: legacy-nginx` and exported via OTLP to the gateway.
 
 **What to show in Grafana:**
+
 - **Loki**: `{service_name="legacy-nginx"} | json` — structured nginx access logs
 - **Mimir**: `nginx_http_requests_total` — request metrics from the exporter
 - **Talking point**: "Not every app can be instrumented. For legacy, third-party, or black-box apps, we use agent-only collection for logs, metrics, and host telemetry — no code changes, no redeployment."
@@ -132,6 +136,7 @@ A [Grafana K6](https://k6.io/) Job that generates continuous traffic to both the
 ### 4. Quick Demo App (`quick-demo-app.yaml`)
 
 A standalone alternative to the full sample-apps suite. Deploys:
+
 - 2 replicas of the OTel demo frontend image with auto-instrumentation annotation
 - A simple curl-based load generator hitting the app every 2 seconds
 
@@ -144,6 +149,7 @@ kubectl apply -f demo/quick-demo-app.yaml
 ## Grafana Queries Cheat Sheet
 
 ### Tempo (Traces)
+
 ```
 {service.name="frontend"}              # All frontend traces
 {status=error}                         # All error traces
@@ -151,6 +157,7 @@ kubectl apply -f demo/quick-demo-app.yaml
 ```
 
 ### Loki (Logs)
+
 ```logql
 {service_name="frontend"}                                # All frontend logs
 {service_name="frontend"} |= "error"                     # Error logs
@@ -159,6 +166,7 @@ kubectl apply -f demo/quick-demo-app.yaml
 ```
 
 ### Mimir (Metrics)
+
 ```promql
 rate(http_server_duration_count[5m])                      # Request rate
 histogram_quantile(0.99, rate(http_server_duration_bucket[5m]))  # p99 latency
