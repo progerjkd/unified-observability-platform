@@ -13,19 +13,6 @@ mimir:
           bucket_name: odontoagil-obs-mimir
           region: us-east-1
 
-    # Disable Kafka-based ingest storage (Mimir 3.x default)
-    # When ingest storage is disabled, use classic ingestion path
-    ingest_storage:
-      enabled: false
-
-    # Enable classic ingestion ring (required when ingest storage is off)
-    ingester:
-      ring:
-        kvstore:
-          store: memberlist
-      # Explicitly enable Push gRPC method for classic ingestion
-      push_grpc_method_enabled: true
-
     blocks_storage:
       tsdb:
         retention_period: 24h
