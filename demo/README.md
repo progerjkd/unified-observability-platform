@@ -2,14 +2,21 @@
 
 This directory contains everything needed to run a cost-optimized demo of the unified observability platform on AWS EKS.
 
+## Prerequisites
+
+- AWS CLI configured with credentials (`aws configure` or `AWS_PROFILE=your-profile`)
+- Terraform >= 1.5
+- kubectl >= 1.28
+- Helm >= 3.12
+
 ## Quick Start
 
 ```bash
 # 1. Deploy AWS infrastructure (~20 min)
 make tf-init && make tf-plan-demo && make tf-apply-demo
 
-# 2. Configure kubectl
-aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1 --profile odontoagil-dev
+# 2. Configure kubectl (uses your default AWS profile, or set AWS_PROFILE=name)
+aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1
 
 # 3. Add Helm repos (one-time)
 make helm-repos
