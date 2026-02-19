@@ -38,6 +38,14 @@ mimir:
         region: us-east-1
       storage_prefix: ruler
 
+    ingester:
+      ring:
+        replication_factor: 1
+
+    store_gateway:
+      sharding_ring:
+        replication_factor: 1
+
     compactor:
       data_dir: /data/compactor
       sharding_ring:

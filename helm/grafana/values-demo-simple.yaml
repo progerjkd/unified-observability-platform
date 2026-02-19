@@ -26,11 +26,14 @@ datasources:
     datasources:
       - name: Mimir
         type: prometheus
-        url: http://mimir-gateway.observability.svc:80/prometheus
+        url: http://mimir-nginx.observability.svc:80/prometheus
         access: proxy
         isDefault: true
         jsonData:
           timeInterval: 30s
+          httpHeaderName1: X-Scope-OrgID
+        secureJsonData:
+          httpHeaderValue1: anonymous
 
       - name: Loki
         type: loki
@@ -45,7 +48,7 @@ datasources:
 
       - name: Tempo
         type: tempo
-        url: http://tempo.observability.svc:3200
+        url: http://tempo-query-frontend.observability.svc:3200
         access: proxy
         jsonData:
           tracesToLogsV2:

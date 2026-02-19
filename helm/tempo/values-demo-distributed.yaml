@@ -1,8 +1,5 @@
-# Tempo - Distributed chart in monolithic mode for demo
-# Uses grafana/tempo-distributed chart (non-deprecated) in single-binary mode
-
-global:
-  clusterDomain: cluster.local
+# Tempo demo overrides — minimal distributed mode
+# Uses grafana/tempo-distributed chart with 1 replica per component
 
 tempo:
   storage:
@@ -14,62 +11,104 @@ tempo:
         region: us-east-1
         insecure: false
 
-  receivers:
-    otlp:
-      protocols:
-        grpc:
-          endpoint: 0.0.0.0:4317
-        http:
-          endpoint: 0.0.0.0:4318
-
   metricsGenerator:
-    enabled: false  # Disable for demo to reduce resource usage
+    enabled: true
+    remoteWriteUrl: http://mimir-distributor.observability.svc:8080/api/v1/push
+    remoteWriteHeaders:
+      X-Scope-OrgID: anonymous
 
-# Use scalable monolithic deployment mode (single binary, can scale horizontally)
-deploymentMode: SingleBinary
+  global_overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
+
+# Enable OTLP receivers on the distributor
+traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true
 
 serviceAccount:
   create: true
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::699475921438:role/obs-lgtm-demo-tempo-s3-access
 
-# Single replica for demo
-singleBinary:
+ingester:
   replicas: 1
+  config:
+    replication_factor: 1
   resources:
     requests:
-      cpu: "100m"
-      memory: "256Mi"
+      cpu: 100m
+      memory: 256Mi
     limits:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: 250m
+      memory: 512Mi
   persistence:
     enabled: true
     size: 5Gi
     storageClass: gp3
+  topologySpreadConstraints: []
 
-# Gateway for unified ingress
+distributor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+compactor:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+querier:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi
+
+queryFrontend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+metricsGenerator:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
 gateway:
   enabled: true
   replicas: 1
   resources:
     requests:
-      cpu: "50m"
-      memory: "64Mi"
+      cpu: 50m
+      memory: 64Mi
     limits:
-      cpu: "100m"
-      memory: "128Mi"
-
-# Disable distributed components (we're using monolithic mode)
-ingester:
-  replicas: 0
-distributor:
-  replicas: 0
-querier:
-  replicas: 0
-queryFrontend:
-  replicas: 0
-compactor:
-  replicas: 0
-metrics_generator:
-  enabled: false
+      cpu: 100m
+      memory: 128Mi

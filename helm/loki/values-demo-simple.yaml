@@ -75,3 +75,11 @@ gateway:
     requests:
       cpu: "50m"
       memory: "64Mi"
+
+# Disable loki-canary (monitoring tool, not critical for demo)
+lokiCanary:
+  enabled: false
+
+# Disable Helm tests (requires canary)
+test:
+  enabled: false

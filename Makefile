@@ -16,7 +16,7 @@ SHELL := /bin/bash
 AWS_REGION     ?= us-east-1
 CLUSTER_NAME   ?= obs-lgtm
 K8S_NAMESPACE  ?= observability
-HELM_TIMEOUT   ?= 10m
+HELM_TIMEOUT   ?= 3m
 
 # ------- Help -------
 
@@ -207,6 +207,7 @@ install-cluster-autoscaler-demo: ## Install Cluster Autoscaler (demo — scales 
 
 install-alerts: ## Upload alert rules to Mimir
 	@echo "Uploading alert rules to Mimir via Job..."
+	kubectl delete job mimir-upload-alerts -n $(K8S_NAMESPACE) 2>/dev/null || true
 	kubectl apply -f helm/mimir/alert-upload-job.yaml
 	@echo "Waiting for alert upload Job to complete..."
 	kubectl wait --for=condition=complete --timeout=60s job/mimir-upload-alerts -n $(K8S_NAMESPACE) || \

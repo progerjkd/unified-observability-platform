@@ -122,7 +122,7 @@ spec:
 
     exporters:
       otlp:
-        endpoint: "otel-gateway.observability.svc:4317"
+        endpoint: otel-gateway-opentelemetry-collector.observability.svc:4317
         tls:
           insecure: true
 

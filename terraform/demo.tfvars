@@ -22,7 +22,7 @@ eks_node_groups = {
     ami_type        = "AL2023_ARM_64_STANDARD"
     capacity_type   = "SPOT"
     min_size        = 2
-    max_size        = 4
+    max_size        = 10
     desired_size    = 2
     labels          = { "observability/role" = "general" }
     block_device_mappings = {

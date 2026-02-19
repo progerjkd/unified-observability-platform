@@ -186,8 +186,8 @@ spec:
             - rules
             - load
             - /rules/alert-rules.yaml
-            - --address=http://mimir-gateway.observability.svc:80
-            - --id=demo-tenant
+            - --address=http://mimir-nginx.observability.svc:80
+            - --id=anonymous
           volumeMounts:
             - name: alert-rules
               mountPath: /rules
