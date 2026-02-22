@@ -27,26 +27,30 @@ ECR_REGISTRY    = $(shell aws sts get-caller-identity --query Account --output t
 HELM_RETRIES   ?= 3
 
 # Helm install with retry — handles cold-start failures when cluster autoscaler
-# is still provisioning nodes (pods fail once, Helm --wait treats it as fatal)
+# is still provisioning nodes (pods fail once, Helm --wait treats it as fatal).
+# Skips install if ArgoCD is already managing the component (avoids SSA conflicts).
 define helm_install_retry
-	@for i in $$(seq 1 $(HELM_RETRIES)); do \
-		echo ">>> Attempt $$i/$(HELM_RETRIES): helm upgrade --install $(1)"; \
-		if helm upgrade --install $(1) $(2) \
-			--namespace $(K8S_NAMESPACE) \
-			$(3) \
-			--server-side --force-conflicts \
-			--timeout $(HELM_TIMEOUT_DEMO) \
-			--wait; then \
-			break; \
-		else \
-			if [ $$i -eq $(HELM_RETRIES) ]; then \
-				echo ">>> FAILED after $(HELM_RETRIES) attempts"; \
-				exit 1; \
+	@if kubectl get application $(1) -n argocd >/dev/null 2>&1; then \
+		echo ">>> $(1) is managed by ArgoCD — skipping Helm install"; \
+	else \
+		for i in $$(seq 1 $(HELM_RETRIES)); do \
+			echo ">>> Attempt $$i/$(HELM_RETRIES): helm upgrade --install $(1)"; \
+			if helm upgrade --install $(1) $(2) \
+				--namespace $(K8S_NAMESPACE) \
+				$(3) \
+				--timeout $(HELM_TIMEOUT_DEMO) \
+				--wait; then \
+				break; \
+			else \
+				if [ $$i -eq $(HELM_RETRIES) ]; then \
+					echo ">>> FAILED after $(HELM_RETRIES) attempts"; \
+					exit 1; \
+				fi; \
+				echo ">>> Retrying in 15s (waiting for nodes to be ready)..."; \
+				sleep 15; \
 			fi; \
-			echo ">>> Retrying in 15s (waiting for nodes to be ready)..."; \
-			sleep 15; \
-		fi; \
-	done
+		done; \
+	fi
 endef
 
 # ------- Help -------
@@ -107,7 +111,6 @@ install-argocd-demo: ## Install ArgoCD (demo — minimal resources)
 		if helm upgrade --install argocd argo/argo-cd \
 			--namespace argocd \
 			--values helm/argocd/values-demo.yaml \
-			--server-side --force-conflicts \
 			--timeout $(HELM_TIMEOUT_DEMO) \
 			--wait; then \
 			break; \
@@ -181,12 +184,15 @@ install-lgtm-demo: install-mimir-demo install-loki-demo install-tempo-demo insta
 .PHONY: install-otel-operator install-otel-gateway install-otel-gateway-demo install-otel-daemonset install-instrumentation install-instrumentation-default install-otel-agent-rbac install-otel install-otel-demo
 
 install-otel-operator: ## Install OpenTelemetry Operator
-	helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
-		--namespace $(K8S_NAMESPACE) \
-		--values helm/otel-operator/values.yaml \
-		--server-side --force-conflicts \
-		--timeout $(HELM_TIMEOUT) \
-		--wait
+	@if kubectl get application otel-operator -n argocd >/dev/null 2>&1; then \
+		echo ">>> otel-operator is managed by ArgoCD — skipping Helm install"; \
+	else \
+		helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
+			--namespace $(K8S_NAMESPACE) \
+			--values helm/otel-operator/values.yaml \
+			--timeout $(HELM_TIMEOUT) \
+			--wait; \
+	fi
 
 install-otel-gateway: ## Install OTel Gateway Collector
 	helm upgrade --install otel-gateway open-telemetry/opentelemetry-collector \
@@ -219,12 +225,15 @@ install-otel-demo: install-otel-operator install-otel-gateway-demo install-otel-
 .PHONY: install-cluster-autoscaler-demo
 
 install-cluster-autoscaler-demo: ## Install Cluster Autoscaler (demo — scales 2-4 nodes)
-	helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
-		--namespace kube-system \
-		--values helm/cluster-autoscaler/values-demo.yaml \
-		--server-side --force-conflicts \
-		--timeout $(HELM_TIMEOUT_DEMO) \
-		--wait
+	@if kubectl get application cluster-autoscaler -n argocd >/dev/null 2>&1; then \
+		echo ">>> cluster-autoscaler is managed by ArgoCD — skipping Helm install"; \
+	else \
+		helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
+			--namespace kube-system \
+			--values helm/cluster-autoscaler/values-demo.yaml \
+			--timeout $(HELM_TIMEOUT_DEMO) \
+			--wait; \
+	fi
 
 # ------- Alerting -------
 
