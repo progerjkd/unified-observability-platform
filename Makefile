@@ -34,6 +34,7 @@ define helm_install_retry
 		if helm upgrade --install $(1) $(2) \
 			--namespace $(K8S_NAMESPACE) \
 			$(3) \
+			--server-side --force-conflicts \
 			--timeout $(HELM_TIMEOUT_DEMO) \
 			--wait; then \
 			break; \
@@ -106,6 +107,7 @@ install-argocd-demo: ## Install ArgoCD (demo — minimal resources)
 		if helm upgrade --install argocd argo/argo-cd \
 			--namespace argocd \
 			--values helm/argocd/values-demo.yaml \
+			--server-side --force-conflicts \
 			--timeout $(HELM_TIMEOUT_DEMO) \
 			--wait; then \
 			break; \
@@ -182,6 +184,7 @@ install-otel-operator: ## Install OpenTelemetry Operator
 	helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
 		--namespace $(K8S_NAMESPACE) \
 		--values helm/otel-operator/values.yaml \
+		--server-side --force-conflicts \
 		--timeout $(HELM_TIMEOUT) \
 		--wait
 
@@ -219,6 +222,7 @@ install-cluster-autoscaler-demo: ## Install Cluster Autoscaler (demo — scales 
 	helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
 		--namespace kube-system \
 		--values helm/cluster-autoscaler/values-demo.yaml \
+		--server-side --force-conflicts \
 		--timeout $(HELM_TIMEOUT_DEMO) \
 		--wait
 
