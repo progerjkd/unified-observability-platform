@@ -22,7 +22,15 @@ module "eks" {
   cluster_addons = {
     coredns    = { most_recent = true }
     kube-proxy = { most_recent = true }
-    vpc-cni    = { most_recent = true }
+    vpc-cni = {
+      most_recent = true
+      configuration_values = jsonencode({
+        env = {
+          ENABLE_PREFIX_DELEGATION = "true"
+          WARM_PREFIX_TARGET       = "1"
+        }
+      })
+    }
   }
 
   # Node groups are passed in via variable — see var.eks_node_groups

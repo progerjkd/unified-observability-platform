@@ -26,17 +26,17 @@ variable "lifecycle_rules" {
     expiration_days         = number
   }))
   default = {
-    obs-mimir = {
+    mimir = {
       ia_transition_days      = 90
       glacier_transition_days = 180
       expiration_days         = 365
     }
-    obs-loki = {
+    loki = {
       ia_transition_days      = 30
       glacier_transition_days = 90
       expiration_days         = 180
     }
-    obs-tempo = {
+    tempo = {
       ia_transition_days      = 30
       glacier_transition_days = 60
       expiration_days         = 90

@@ -244,6 +244,8 @@ spec:
     targetRevision: main
     directory:
       recurse: true
+      include: "*.yaml"
+      exclude: "{nodejs-shop/**,load-generator.yaml}"
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

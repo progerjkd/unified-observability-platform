@@ -6,9 +6,9 @@ set -e
 
 AWS_PROFILE="${1:-default}"
 BUCKETS=(
-  "odontoagil-obs-mimir"
-  "odontoagil-obs-loki"
-  "odontoagil-obs-tempo"
+  "obs-platform-mimir"
+  "obs-platform-loki"
+  "obs-platform-tempo"
 )
 
 empty_bucket() {

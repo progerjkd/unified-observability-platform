@@ -12,9 +12,9 @@ loki:
   storage:
     type: s3
     bucketNames:
-      chunks: odontoagil-obs-loki
-      ruler: odontoagil-obs-loki
-      admin: odontoagil-obs-loki
+      chunks: obs-platform-loki
+      ruler: obs-platform-loki
+      admin: obs-platform-loki
     s3:
       endpoint: s3.us-east-1.amazonaws.com
       region: us-east-1

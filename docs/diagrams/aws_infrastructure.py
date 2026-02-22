@@ -54,9 +54,9 @@ with Diagram("AWS Infrastructure - Observability Platform",
                         grafana = ECS("Grafana\n(Visualization)")
 
         with Cluster("S3 Storage"):
-            s3_mimir = S3("obs-mimir")
-            s3_loki = S3("obs-loki")
-            s3_tempo = S3("obs-tempo")
+            s3_mimir = S3("mimir")
+            s3_loki = S3("loki")
+            s3_tempo = S3("tempo")
 
         with Cluster("IAM / IRSA"):
             irsa_mimir = IAM("IRSA Role\nMimir")

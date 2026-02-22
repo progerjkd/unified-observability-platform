@@ -63,7 +63,7 @@ make tf-init
 make tf-plan-demo && make tf-apply
 
 # 2. Configure kubectl
-aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1 --profile odontoagil-dev
+aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1 --profile your-aws-profile
 
 # 3. Deploy everything: autoscaler + LGTM + OTel + alerts + dashboards (~15 minutes)
 make helm-repos

@@ -10,11 +10,11 @@ spec:
 
   resources:
     requests:
-      cpu: "200m"
-      memory: "256Mi"
+      cpu: "50m"
+      memory: "128Mi"
     limits:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: "250m"
+      memory: "256Mi"
 
   tolerations:
     - operator: Exists
@@ -86,8 +86,8 @@ spec:
     processors:
       memory_limiter:
         check_interval: 1s
-        limit_mib: 400
-        spike_limit_mib: 100
+        limit_mib: 200
+        spike_limit_mib: 50
 
       batch:
         send_batch_size: 1000

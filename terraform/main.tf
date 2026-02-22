@@ -97,6 +97,15 @@ module "s3" {
   common_tags = local.common_tags
 }
 
+# ------- ECR Repositories (demo apps) -------
+
+module "ecr" {
+  source = "./aws/ecr"
+
+  org_prefix  = var.org_prefix
+  common_tags = local.common_tags
+}
+
 # ------- IAM / IRSA Roles -------
 
 module "iam" {

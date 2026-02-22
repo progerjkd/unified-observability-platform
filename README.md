@@ -33,58 +33,29 @@ A vendor-neutral, production-grade observability platform providing **metrics, l
 
 ## Architecture Overview
 
-```
-┌───────────────────────────────────────────────────────────────────────────┐
-│                       COMPUTE INSTANCES (~500)                            │
-│                                                                           │
-│   EKS Linux    ECS Fargate    ECS EC2       EC2 Bare      On-Premises    │
-│   (DaemonSet)  (Sidecar)      Linux/Win     Linux/Win     Linux/Win      │
-│                                                                           │
-│   ┌─────────────────────────────────────────────────────────────────┐     │
-│   │  Applications + OTel SDK Auto-Instrumentation                   │     │
-│   │  Java (.NET Core, Node.js) ─── OTLP ──▶ localhost:4317         │     │
-│   │                                                                  │     │
-│   │  Legacy Apps (no code changes)                                   │     │
-│   │  Host metrics, log files, Windows Event Logs ──▶ Agent scrape   │     │
-│   └─────────────────────────────────────────────────────────────────┘     │
-│                               │                                           │
-│   ┌───────────────────────────▼─────────────────────────────────────┐     │
-│   │           OTel Collector Agent (per host / per task)            │     │
-│   │   Receivers: otlp, hostmetrics, filelog, windowseventlog, iis   │     │
-│   │   Processors: memory_limiter, batch, resourcedetection          │     │
-│   │   Buffer: file_storage (2GB persistent disk queue)              │     │
-│   └───────────────────────────┬─────────────────────────────────────┘     │
-└───────────────────────────────┼───────────────────────────────────────────┘
-                                │ OTLP gRPC :4317
-                                │ (gateway.observability.internal)
-                ┌───────────────▼───────────────────┐
-                │      OTel Gateway Cluster          │
-                │      3 replicas + HPA (up to 6)    │
-                │                                    │
-                │  ◆ Tail sampling (errors: 100%,    │
-                │    high-latency: 100%, normal: 2%) │
-                │  ◆ Health-check span filtering     │
-                │  ◆ Attribute normalization          │
-                └───────────────┬───────────────────┘
-                                │ OTLP HTTP
-                ┌───────────────┼───────────────────┐
-                │               │                   │
-        ┌───────▼──────┐ ┌─────▼─────┐ ┌──────────▼──────┐
-        │ Grafana Mimir │ │Grafana Loki│ │  Grafana Tempo  │
-        │   (Metrics)   │ │   (Logs)   │ │    (Traces)     │
-        │   PromQL      │ │   LogQL    │ │    TraceQL      │
-        └───────┬───────┘ └─────┬──────┘ └────────┬────────┘
-                └───────────────┼──────────────────┘
-                          S3 Buckets
-                    (KMS-encrypted, lifecycle-managed)
-                ┌───────────────▼───────────────────┐
-                │           Grafana                  │
-                │                                    │
-                │   Dashboards · Alerts · Explore    │
-                │   Exemplars · Derived Fields       │
-                │   Service Topology · Trace-to-Logs │
-                └────────────────────────────────────┘
-```
+### AWS Infrastructure
+
+<p align="center">
+  <img src="docs/diagrams/aws_infrastructure.png" width="800" alt="AWS Infrastructure — VPC, EKS, S3, IAM, KMS">
+</p>
+
+### Telemetry Data Flow
+
+<p align="center">
+  <img src="docs/diagrams/data_flow.png" width="700" alt="Telemetry Data Flow — Collection, Gateway, and Backend layers across ~500 compute instances">
+</p>
+
+### EKS Cluster Detail
+
+<p align="center">
+  <img src="docs/diagrams/eks_cluster.png" width="800" alt="EKS Cluster Architecture — Node groups, LGTM components, OTel Operator, S3 storage">
+</p>
+
+### Network Architecture
+
+<p align="center">
+  <img src="docs/diagrams/network_architecture.png" width="700" alt="VPC Network Layout — 3 AZs, public/private subnets, NLB, NAT, Direct Connect">
+</p>
 
 The platform follows a **three-layer architecture**:
 

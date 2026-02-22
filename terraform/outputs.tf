@@ -37,3 +37,8 @@ output "cluster_autoscaler_role_arn" {
   description = "IAM role ARN for Cluster Autoscaler"
   value       = module.eks.cluster_autoscaler_role_arn
 }
+
+output "ecr_repository_urls" {
+  description = "ECR repository URLs for demo apps"
+  value       = module.ecr.repository_urls
+}

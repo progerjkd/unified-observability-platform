@@ -7,17 +7,17 @@ locals {
     mimir = {
       namespace       = var.k8s_namespace
       service_account = "mimir"
-      bucket_key      = "obs-mimir"
+      bucket_key      = "mimir"
     }
     loki = {
       namespace       = var.k8s_namespace
       service_account = "loki"
-      bucket_key      = "obs-loki"
+      bucket_key      = "loki"
     }
     tempo = {
       namespace       = var.k8s_namespace
       service_account = "tempo"
-      bucket_key      = "obs-tempo"
+      bucket_key      = "tempo"
     }
   }
 }

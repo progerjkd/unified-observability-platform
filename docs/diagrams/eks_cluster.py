@@ -64,9 +64,9 @@ with Diagram("EKS Cluster Architecture - obs-lgtm",
             otel_daemonset = DaemonSet("OTel Collector\nDaemonSet")
 
     with Cluster("S3 Storage"):
-        s3_mimir = S3("obs-mimir\nChunks, Blocks, Index")
-        s3_loki = S3("obs-loki\nChunks, Index")
-        s3_tempo = S3("obs-tempo\nBlocks, WAL")
+        s3_mimir = S3("mimir\nChunks, Blocks, Index")
+        s3_loki = S3("loki\nChunks, Index")
+        s3_tempo = S3("tempo\nBlocks, WAL")
 
     # External to cluster
     external_nlb >> Edge(label="TCP :4317") >> otel_gateway_deploy

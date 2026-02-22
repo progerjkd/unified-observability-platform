@@ -8,7 +8,7 @@ tempo:
     trace:
       backend: s3
       s3:
-        bucket: odontoagil-obs-tempo
+        bucket: obs-platform-tempo
         endpoint: s3.us-east-1.amazonaws.com
         region: us-east-1
 

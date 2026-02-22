@@ -4,45 +4,131 @@ This directory contains everything needed to run a cost-optimized demo of the un
 
 ## Prerequisites
 
-- AWS CLI configured with credentials (`aws configure` or `AWS_PROFILE=your-profile`)
+- AWS CLI configured with credentials (`aws configure` or `AWS_PROFILE`)
+- Docker Desktop (for building ARM64 images)
 - Terraform >= 1.5
 - kubectl >= 1.28
 - Helm >= 3.12
 
-## Quick Start
+## Set Your Environment
+
+Export these before running any commands. Adjust values to match your setup:
 
 ```bash
-# 1. Deploy AWS infrastructure (~20 min)
-make tf-init && make tf-plan-demo && make tf-apply-demo
-
-# 2. Configure kubectl (uses your default AWS profile, or set AWS_PROFILE=name)
-aws eks update-kubeconfig --name obs-lgtm-demo --region us-east-1
-
-# 3. Add Helm repos (one-time)
-make helm-repos
-
-# 4. Deploy LGTM stack + OTel collection layer (~15 min)
-make deploy-all-demo
-
-# 5. Deploy sample apps + load generator
-make deploy-demo-apps
-
-# 6. (Optional) Install ArgoCD for deployment visualization
-make install-argocd-demo && make argocd-apps-demo
-
-# 7. Access Grafana
-kubectl -n observability port-forward svc/grafana 3000:80
-# Open http://localhost:3000 — Login: admin / demo-admin-2025
-
-# 8. Access ArgoCD (if installed)
-kubectl -n argocd port-forward svc/argocd-server 8080:80
-make argocd-password
-# Open http://localhost:8080 — Login: admin / <password from above>
+export AWS_PROFILE=your-profile
 ```
 
-Dashboards will populate with data within ~5 minutes of deploying sample apps.
+```bash
+export AWS_REGION=us-east-1
+```
+
+```bash
+export CLUSTER_NAME=obs-lgtm-demo
+```
+
+## Quick Start
+
+### 1. Deploy AWS infrastructure (~20 min)
+
+Creates EKS cluster, S3 buckets, IAM roles, and ECR repositories.
+
+```bash
+make tf-init
+```
+
+```bash
+make tf-plan-demo
+```
+
+```bash
+make tf-apply-demo
+```
+
+### 2. Add Helm repos (one-time)
+
+```bash
+make helm-repos
+```
+
+### 3. Deploy LGTM stack + OTel (~10 min on first run)
+
+Deploys Mimir, Loki, Tempo, Grafana, OTel Operator, OTel Gateway, OTel Agent DaemonSet, auto-instrumentation CRs, alert rules, dashboards, and a quick demo app.
+
+```bash
+make deploy-all-demo
+```
+
+> **Note**: First run on a fresh cluster may take longer while the cluster autoscaler provisions additional nodes. The 10-minute Helm timeout allows for this.
+
+### 4. Build and push demo app images
+
+Build ARM64 Docker images for the 3 Node.js microservices (frontend, product-api, inventory):
+
+```bash
+make build-demo-images
+```
+
+Push to ECR:
+
+```bash
+make push-demo-images
+```
+
+### 5. Deploy sample apps + load generator
+
+Deploys the 3-tier Node.js shop, legacy nginx, and K6 load generator. Image URIs are automatically substituted from ECR.
+
+```bash
+make deploy-demo-apps
+```
+
+### 6. Access Grafana
+
+```bash
+kubectl -n observability port-forward svc/grafana 3000:80
+```
+
+Open <http://localhost:3000> — Login: `admin` / `demo-admin-2025`
+
+Dashboards will populate with data within ~2 minutes of deployment.
+
+### 7. (Optional) Install ArgoCD for deployment visualization
+
+```bash
+make install-argocd-demo
+```
+
+```bash
+make argocd-apps-demo
+```
+
+### 8. Access ArgoCD (if installed)
+
+```bash
+kubectl -n argocd port-forward svc/argocd-server 8080:80
+```
+
+```bash
+make argocd-password
+```
+
+Open <http://localhost:8080> — Login: `admin` / password from above
 
 ## Teardown
+
+### Remove Helm releases + apps (keeps infrastructure)
+
+```bash
+make undeploy-demo
+```
+
+### Remove only sample apps (keeps LGTM stack)
+
+```bash
+make destroy-demo-apps
+```
+
+### Full teardown (destroy EKS cluster + all AWS resources)
 
 ```bash
 make teardown-demo
@@ -52,22 +138,53 @@ This automatically:
 
 1. Empties S3 buckets (all object versions and delete markers)
 2. Removes the Kubernetes namespace from Terraform state (avoids timeout)
-3. Runs `terraform destroy`
+3. Runs `terraform destroy` (removes EKS, S3, IAM, ECR)
 4. Cleans up orphaned EBS volumes left behind by PVCs
+
+### Redeploy from scratch (after undeploy)
+
+```bash
+make deploy-all-demo
+```
+
+```bash
+make deploy-demo-apps
+```
+
+## Architecture
+
+<p align="center">
+  <img src="../docs/diagrams/aws_infrastructure.png" width="700" alt="AWS Infrastructure">
+</p>
+
+<p align="center">
+  <img src="../docs/diagrams/data_flow.png" width="600" alt="Telemetry Data Flow">
+</p>
+
+<p align="center">
+  <img src="../docs/diagrams/eks_cluster.png" width="700" alt="EKS Cluster Architecture">
+</p>
+
+<p align="center">
+  <img src="../docs/diagrams/network_architecture.png" width="600" alt="Network Architecture">
+</p>
+
+> Diagrams are generated from code — see [docs/diagrams/](../docs/diagrams/) for sources and regeneration instructions.
 
 ## Infrastructure
 
 Demo mode deploys a minimal EKS cluster optimized for cost (~$100-150/month):
 
-| Resource     | Demo                                  | Production                             |
-| ------------ | ------------------------------------- | -------------------------------------- |
-| EKS nodes    | 2-4x Graviton Spot (autoscaled)       | 13 nodes across 3 node groups          |
-| Mimir        | 1 replica, monolithic                 | 3+ replicas, distributed               |
-| Loki         | 1 replica, SingleBinary               | Distributed with read/write separation |
-| Tempo        | 1 replica, monolithic                 | Distributed with compactor             |
-| Grafana      | 1 replica                             | 2 replicas, HA                         |
-| OTel Gateway | 1 replica                             | 3 replicas with HPA                    |
-| ArgoCD       | 1 replica (optional, visualization)   | N/A (or dedicated GitOps cluster)      |
+| Resource     | Demo                                       | Production                             |
+| ------------ | ------------------------------------------ | -------------------------------------- |
+| EKS nodes    | 2-10x Graviton Spot (autoscaled)           | 13 nodes across 3 node groups          |
+| ECR          | 3 repos (frontend, product-api, inventory) | N/A (use your CI/CD registry)          |
+| Mimir        | 1 replica, replication_factor=1            | 3+ replicas, distributed               |
+| Loki         | 1 replica, SingleBinary                    | Distributed with read/write separation |
+| Tempo        | 1 replica per component                    | Distributed with compactor             |
+| Grafana      | 1 replica                                  | 2 replicas, HA                         |
+| OTel Gateway | 1 replica                                  | 3 replicas with HPA                    |
+| ArgoCD       | 1 replica (optional, visualization)        | N/A (or dedicated GitOps cluster)      |
 
 All features (auto-instrumentation, tail sampling, cross-signal correlation) work identically.
 
@@ -76,14 +193,13 @@ All features (auto-instrumentation, tail sampling, cross-signal correlation) wor
 The demo uses **Cluster Autoscaler** with tight packing to minimize cost:
 
 - **Starts with 2 nodes** — minimum viable for the LGTM stack
-- **Scales to 3-4 nodes** automatically when pods are Pending (e.g., after deploying sample apps)
-- **Scales back to 2 nodes** within ~10 min when load drops (utilization threshold: 50%)
+- **Scales up automatically** when pods are Pending (e.g., after deploying sample apps)
+- **Scales back down** within ~10 min when load drops (utilization threshold: 50%)
 - **Diversified Spot pool** (`t4g.medium`, `t4g.large`, `m6g.medium`, `m7g.medium`) for availability
 
 If Spot capacity is unavailable, switch to On-Demand:
 
 ```bash
-# Switch to On-Demand (~5 min, only replaces nodes)
 make tf-plan-demo-ondemand && make tf-apply
 ```
 
@@ -95,8 +211,11 @@ demo/
   sample-apps/                  # Full sample application suite
     nodejs-shop/                # 3-tier e-commerce microservices
       frontend/                 #   Express.js web frontend
+        app.js, Dockerfile, package.json, deployment.yaml
       product-api/              #   Product catalog API
+        app.js, Dockerfile, package.json, deployment.yaml
       inventory/                #   Inventory service
+        app.js, Dockerfile, package.json, deployment.yaml
     legacy-nginx/               # Legacy app with agent-only collection
     load-generator.yaml         # K6 load generator for all apps
 ```
@@ -125,6 +244,8 @@ annotations:
 ```
 
 The Operator injects an init container that copies the Node.js SDK into the app container and sets `NODE_OPTIONS` to auto-load it. The result is full distributed tracing, RED metrics, and log correlation with zero application changes.
+
+**Image build pipeline**: Images are built for `linux/arm64` (matching Graviton nodes) and stored in ECR repositories created by Terraform (`obs-platform-demo/frontend`, `obs-platform-demo/product-api`, `obs-platform-demo/inventory`). The `deploy-demo-apps` target automatically substitutes the ECR URI into the deployment manifests.
 
 **What to show in Grafana:**
 
@@ -172,11 +293,7 @@ A standalone alternative to the full sample-apps suite. Deploys:
 - 2 replicas of the OTel demo frontend image with auto-instrumentation annotation
 - A simple curl-based load generator hitting the app every 2 seconds
 
-Use this for a minimal demo when you don't need the full 3-tier architecture. Deploy with:
-
-```bash
-kubectl apply -f demo/quick-demo-app.yaml
-```
+Use this for a minimal demo when you don't need the full 3-tier architecture. It is deployed automatically by `make deploy-all-demo`.
 
 ## ArgoCD — Deployment Visualization
 
@@ -185,32 +302,39 @@ ArgoCD provides a visual dashboard showing all LGTM stack components with real-t
 ### Setup
 
 ```bash
-make install-argocd-demo     # Install ArgoCD (~2 min)
-make argocd-apps-demo        # Create Application CRs for all components
+make install-argocd-demo
+```
+
+```bash
+make argocd-apps-demo
 ```
 
 ### Access
 
 ```bash
 kubectl -n argocd port-forward svc/argocd-server 8080:80
-make argocd-password         # Retrieve admin password
-# Open http://localhost:8080 — Login: admin / <password>
 ```
+
+```bash
+make argocd-password
+```
+
+Open <http://localhost:8080> — Login: `admin` / password from command above
 
 ### What ArgoCD Shows
 
 8 Application tiles, each showing health status:
 
-| Application        | Source                         | Namespace      |
-| ------------------ | ------------------------------ | -------------- |
-| mimir              | grafana/mimir-distributed      | observability  |
-| loki               | grafana/loki                   | observability  |
-| tempo              | grafana/tempo-distributed      | observability  |
-| grafana            | grafana/grafana                | observability  |
-| otel-operator      | opentelemetry-operator         | observability  |
-| otel-gateway       | opentelemetry-collector        | observability  |
-| cluster-autoscaler | cluster-autoscaler             | kube-system    |
-| demo-apps          | demo/sample-apps/ (git)        | observability  |
+| Application        | Source                    | Namespace     |
+| ------------------ | ------------------------- | ------------- |
+| mimir              | grafana/mimir-distributed | observability |
+| loki               | grafana/loki              | observability |
+| tempo              | grafana/tempo-distributed | observability |
+| grafana            | grafana/grafana           | observability |
+| otel-operator      | opentelemetry-operator    | observability |
+| otel-gateway       | opentelemetry-collector   | observability |
+| cluster-autoscaler | cluster-autoscaler        | kube-system   |
+| demo-apps          | demo/sample-apps/ (git)   | observability |
 
 Each Application uses **multi-source**: Helm chart from upstream + values from this git repo. Click any tile to see the full resource topology (Deployments, StatefulSets, Pods, Services, PVCs).
 

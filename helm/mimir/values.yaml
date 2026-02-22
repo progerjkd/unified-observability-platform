@@ -9,7 +9,7 @@ mimir:
         backend: s3
         s3:
           endpoint: s3.us-east-1.amazonaws.com
-          bucket_name: ${org_prefix}-obs-mimir
+          bucket_name: ${org_prefix}-mimir
           region: us-east-1
           # Authentication via IRSA (no explicit credentials needed)
 

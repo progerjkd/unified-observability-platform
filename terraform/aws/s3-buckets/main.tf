@@ -1,5 +1,5 @@
 locals {
-  buckets = ["obs-mimir", "obs-loki", "obs-tempo"]
+  buckets = ["mimir", "loki", "tempo"]
 }
 
 resource "aws_s3_bucket" "observability" {
