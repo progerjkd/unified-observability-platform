@@ -181,13 +181,18 @@ install-lgtm-demo: install-mimir-demo install-loki-demo install-tempo-demo insta
 
 # ------- OTel Collection (Helm + kubectl) -------
 
-.PHONY: install-otel-operator install-otel-gateway install-otel-gateway-demo install-otel-daemonset install-instrumentation install-instrumentation-default install-otel-agent-rbac install-otel install-otel-demo
+.PHONY: install-otel-operator install-otel-gateway install-otel-gateway-demo install-otel-daemonset install-instrumentation install-instrumentation-default install-instrumentation-demo install-otel-agent-rbac install-otel install-otel-demo
 
 install-otel-operator: ## Install OpenTelemetry Operator
+	@# Clean up stale operator if release name was different (prevents duplicate webhooks)
+	@if helm status opentelemetry-operator -n $(K8S_NAMESPACE) >/dev/null 2>&1; then \
+		echo ">>> Removing stale 'opentelemetry-operator' Helm release (renamed to 'otel-operator')..."; \
+		helm uninstall opentelemetry-operator -n $(K8S_NAMESPACE) --wait; \
+	fi
 	@if kubectl get application otel-operator -n argocd >/dev/null 2>&1; then \
 		echo ">>> otel-operator is managed by ArgoCD — skipping Helm install"; \
 	else \
-		helm upgrade --install opentelemetry-operator open-telemetry/opentelemetry-operator \
+		helm upgrade --install otel-operator open-telemetry/opentelemetry-operator \
 			--namespace $(K8S_NAMESPACE) \
 			--values helm/otel-operator/values.yaml \
 			--timeout $(HELM_TIMEOUT) \
@@ -218,7 +223,10 @@ install-otel-agent-rbac: ## Create ClusterRole/Binding for OTel agent (k8sattrib
 install-instrumentation-default: ## Deploy auto-instrumentation CR in default namespace
 	kubectl apply -f helm/otel-operator/instrumentation-default.yaml
 
-install-otel-demo: install-otel-operator install-otel-gateway-demo install-otel-daemonset install-instrumentation install-otel-agent-rbac ## Install OTel collection (demo sizing)
+install-instrumentation-demo: ## Deploy auto-instrumentation CR (demo — 100% sampling)
+	kubectl apply -f helm/otel-operator/instrumentation-demo.yaml
+
+install-otel-demo: install-otel-operator install-otel-gateway-demo install-otel-daemonset install-instrumentation-demo install-otel-agent-rbac ## Install OTel collection (demo sizing)
 
 # ------- Cluster Autoscaler -------
 
@@ -288,8 +296,8 @@ deploy-all-demo: kubeconfig-demo namespace install-cluster-autoscaler-demo insta
 undeploy-demo: ## Remove all demo Helm releases, CRs, and demo apps
 	@echo "Removing demo apps..."
 	-kubectl delete -f demo/quick-demo-app.yaml --ignore-not-found 2>/dev/null
-	-kubectl delete deployment frontend product-api inventory --ignore-not-found 2>/dev/null
-	-kubectl delete service frontend product-api inventory --ignore-not-found 2>/dev/null
+	-kubectl delete deployment frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found 2>/dev/null
+	-kubectl delete service frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found 2>/dev/null
 	@echo "Removing Instrumentation CRs..."
 	-kubectl delete instrumentation otel-instrumentation -n default --ignore-not-found 2>/dev/null
 	-kubectl delete instrumentation otel-instrumentation -n $(K8S_NAMESPACE) --ignore-not-found 2>/dev/null
@@ -303,6 +311,7 @@ undeploy-demo: ## Remove all demo Helm releases, CRs, and demo apps
 	-kubectl delete configmap grafana-dashboards -n $(K8S_NAMESPACE) --ignore-not-found 2>/dev/null
 	@echo "Uninstalling Helm releases..."
 	-helm uninstall otel-gateway -n $(K8S_NAMESPACE) 2>/dev/null
+	-helm uninstall otel-operator -n $(K8S_NAMESPACE) 2>/dev/null
 	-helm uninstall opentelemetry-operator -n $(K8S_NAMESPACE) 2>/dev/null
 	-helm uninstall grafana -n $(K8S_NAMESPACE) 2>/dev/null
 	-helm uninstall tempo -n $(K8S_NAMESPACE) 2>/dev/null
@@ -348,9 +357,9 @@ deploy-demo-apps: ## Deploy sample apps + load generator for demo
 	@ECR_URI=$(ECR_REGISTRY)/$(ORG_PREFIX)-demo; \
 	for svc in $(DEMO_SERVICES); do \
 		echo "Deploying $$svc with image $$ECR_URI/$$svc:$(IMAGE_TAG)..."; \
-		sed "s|YOUR_REGISTRY|$$ECR_URI|g" $(DEMO_APP_DIR)/$$svc/deployment.yaml | kubectl apply -f -; \
+		sed "s|YOUR_REGISTRY|$$ECR_URI|g" $(DEMO_APP_DIR)/$$svc/deployment.yaml | kubectl apply -n $(K8S_NAMESPACE) -f -; \
 	done
-	kubectl apply -f demo/sample-apps/legacy-nginx/deployment.yaml
+	kubectl apply -n $(K8S_NAMESPACE) -f demo/sample-apps/legacy-nginx/deployment.yaml
 	-kubectl delete job load-generator -n $(K8S_NAMESPACE) --ignore-not-found --wait=true 2>/dev/null
 	kubectl apply -f demo/sample-apps/load-generator.yaml
 	@echo ""
@@ -359,9 +368,9 @@ deploy-demo-apps: ## Deploy sample apps + load generator for demo
 
 destroy-demo-apps: ## Remove sample apps + load generator
 	kubectl delete -f demo/sample-apps/load-generator.yaml --ignore-not-found
-	kubectl delete -f demo/sample-apps/legacy-nginx/deployment.yaml --ignore-not-found
-	-kubectl delete deployment frontend product-api inventory --ignore-not-found
-	-kubectl delete service frontend product-api inventory --ignore-not-found
+	kubectl delete -n $(K8S_NAMESPACE) -f demo/sample-apps/legacy-nginx/deployment.yaml --ignore-not-found
+	-kubectl delete deployment frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found
+	-kubectl delete service frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found
 
 # ------- Validation -------
 

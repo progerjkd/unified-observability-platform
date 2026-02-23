@@ -14,35 +14,6 @@ tempo:
 
   retention: 336h  # 14 days
 
-  # Metrics generator: create RED metrics from traces
-  metricsGenerator:
-    enabled: true
-    remoteWriteUrl: "http://mimir-distributor.observability.svc:8080/api/v1/push"
-    processor:
-      service_graphs:
-        enabled: true
-        dimensions:
-          - service.namespace
-          - deployment.environment
-      span_metrics:
-        enabled: true
-        dimensions:
-          - service.namespace
-          - deployment.environment
-          - http.method
-          - http.status_code
-
-  # Global overrides
-  global_overrides:
-    defaults:
-      ingestion:
-        rate_limit_bytes: 15000000  # 15MB/s
-        burst_size_bytes: 20000000  # 20MB
-      metrics_generator:
-        processors:
-          - service-graphs
-          - span-metrics
-
   # Memberlist for ring coordination
   memberlist:
     bind_addr:
@@ -112,16 +83,45 @@ queryFrontend:
       memory: "1Gi"
 
 metricsGenerator:
+  enabled: true
   replicas: 1
   resources:
     requests:
       cpu: "250m"
       memory: "512Mi"
+  config:
+    storage:
+      remote_write:
+        - url: http://mimir-distributor.observability.svc:8080/api/v1/push
+          headers:
+            X-Scope-OrgID: anonymous
+    processor:
+      service_graphs:
+        dimensions:
+          - service.namespace
+          - deployment.environment
+      span_metrics:
+        dimensions:
+          - service.namespace
+          - deployment.environment
+          - http.method
+          - http.status_code
 
 # Gateway for receiving OTLP data
 gateway:
   enabled: true
   replicas: 1
+
+# Global overrides — enable metrics generator processors
+overrides:
+  defaults:
+    ingestion:
+      rate_limit_bytes: 15000000  # 15MB/s
+      burst_size_bytes: 20000000  # 20MB
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics
 
 # Service account with IRSA
 serviceAccount:

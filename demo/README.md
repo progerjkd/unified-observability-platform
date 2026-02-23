@@ -324,17 +324,19 @@ This requires no application-side configuration. Grafana datasources are pre-con
 
 ## Step 10 — Trigger Error Alert
 
-The frontend has an `/error` endpoint that always returns HTTP 500. Generate error traffic:
+The frontend has an `/error` endpoint that always returns HTTP 500. Generate sustained error traffic (~2 minutes) so the alert has time to fire:
 
 ```bash
 kubectl run curl --image=curlimages/curl --rm -it --restart=Never -- \
-  sh -c "for i in \$(seq 1 50); do curl -s http://frontend.observability:3000/error; sleep 0.2; done"
+  sh -c "for i in \$(seq 1 600); do curl -s http://frontend.observability:3000/error; sleep 0.2; done"
 ```
+
+> This sends ~5 requests/sec for 2 minutes. The alert rule requires >5% error rate sustained for 1 minute before firing.
 
 In Grafana:
 
 1. Go to **Alerting > Alert Rules** — find `HighErrorRate`
-2. Wait ~2 min — it should transition to **Firing**
+2. Wait ~2 min — it should transition to **Pending** then **Firing**
 3. Click the alert to see which service triggered it (`frontend`)
 4. Drill down: **alert > metrics panel > click exemplar > trace > logs**
 
