@@ -294,10 +294,10 @@ deploy-all-demo: kubeconfig-demo namespace install-cluster-autoscaler-demo insta
 	@echo "Gateway: otel-gateway-opentelemetry-collector.$(K8S_NAMESPACE).svc:4317"
 
 undeploy-demo: ## Remove all demo Helm releases, CRs, and demo apps
-	@echo "Removing demo apps..."
+	@echo "Removing demo app namespaces..."
+	-kubectl delete ns nodejs-app legacy-lamp load-gen --ignore-not-found 2>/dev/null
+	@echo "Removing quick-demo-app..."
 	-kubectl delete -f demo/quick-demo-app.yaml --ignore-not-found 2>/dev/null
-	-kubectl delete deployment frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found 2>/dev/null
-	-kubectl delete service frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found 2>/dev/null
 	@echo "Removing Instrumentation CRs..."
 	-kubectl delete instrumentation otel-instrumentation -n default --ignore-not-found 2>/dev/null
 	-kubectl delete instrumentation otel-instrumentation -n $(K8S_NAMESPACE) --ignore-not-found 2>/dev/null
@@ -354,23 +354,32 @@ push-demo-images: ecr-login ## Push all demo app images to ECR
 .PHONY: deploy-demo-apps destroy-demo-apps
 
 deploy-demo-apps: ## Deploy sample apps + load generator for demo
+	@echo "Creating demo namespaces..."
+	kubectl create ns nodejs-app --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create ns legacy-lamp --dry-run=client -o yaml | kubectl apply -f -
+	kubectl create ns load-gen --dry-run=client -o yaml | kubectl apply -f -
+	@echo "Deploying Instrumentation CR to nodejs-app namespace..."
+	kubectl apply -f helm/otel-operator/instrumentation-nodejs-app.yaml
 	@ECR_URI=$(ECR_REGISTRY)/$(ORG_PREFIX)-demo; \
 	for svc in $(DEMO_SERVICES); do \
 		echo "Deploying $$svc with image $$ECR_URI/$$svc:$(IMAGE_TAG)..."; \
-		sed "s|YOUR_REGISTRY|$$ECR_URI|g" $(DEMO_APP_DIR)/$$svc/deployment.yaml | kubectl apply -n $(K8S_NAMESPACE) -f -; \
+		sed "s|YOUR_REGISTRY|$$ECR_URI|g" $(DEMO_APP_DIR)/$$svc/deployment.yaml | kubectl apply -f -; \
 	done
-	kubectl apply -n $(K8S_NAMESPACE) -f demo/sample-apps/legacy-nginx/deployment.yaml
-	-kubectl delete job load-generator -n $(K8S_NAMESPACE) --ignore-not-found --wait=true 2>/dev/null
+	@echo "Deploying legacy LAMP stack..."
+	kubectl apply -f demo/sample-apps/legacy-lamp/deployment.yaml
+	@echo "Deploying load generator..."
+	-kubectl delete job load-generator -n load-gen --ignore-not-found --wait=true 2>/dev/null
 	kubectl apply -f demo/sample-apps/load-generator.yaml
 	@echo ""
 	@echo "=== Demo apps deployed ==="
+	@echo "  nodejs-app  : frontend, product-api, inventory (auto-instrumented)"
+	@echo "  legacy-lamp : LAMP stack with OTel sidecar (agent-only)"
+	@echo "  load-gen    : K6 load generator"
 	@echo "Load generator running — dashboards will populate in ~5 minutes"
 
 destroy-demo-apps: ## Remove sample apps + load generator
-	kubectl delete -f demo/sample-apps/load-generator.yaml --ignore-not-found
-	kubectl delete -n $(K8S_NAMESPACE) -f demo/sample-apps/legacy-nginx/deployment.yaml --ignore-not-found
-	-kubectl delete deployment frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found
-	-kubectl delete service frontend product-api inventory -n $(K8S_NAMESPACE) --ignore-not-found
+	@echo "Deleting demo namespaces (cascades all resources)..."
+	-kubectl delete ns nodejs-app legacy-lamp load-gen --ignore-not-found
 
 # ------- Validation -------
 

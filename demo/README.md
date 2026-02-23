@@ -116,17 +116,25 @@ make push-demo-images
 
 ## Step 4 — Deploy Sample Applications
 
-Deploys the 3-tier Node.js shop, legacy nginx, and K6 load generator:
+Creates 3 dedicated namespaces and deploys the demo workloads:
 
 ```bash
 make deploy-demo-apps
 ```
 
-ECR image URIs are automatically substituted into the deployment manifests.
+ECR image URIs are automatically substituted into the Node.js deployment manifests.
+
+### Namespace layout
+
+| Namespace | Contents | OTel Strategy |
+|-----------|----------|---------------|
+| `nodejs-app` | frontend, product-api, inventory | Auto-instrumentation (zero-code) |
+| `legacy-lamp` | LAMP stack (Apache+PHP+MySQL) + OTel sidecar | Agent-only (sidecar) |
+| `load-gen` | K6 load generator | N/A (test traffic) |
 
 ### What gets deployed
 
-**Modern apps (auto-instrumented):**
+**Modern apps — `nodejs-app` namespace (auto-instrumented):**
 
 ```
 frontend (:3000) --> product-api (:3001) --> inventory (:3002)
@@ -141,15 +149,19 @@ annotations:
 
 See [frontend/app.js](sample-apps/nodejs-shop/frontend/app.js) — standard Express.js, no OTel imports.
 
-**Legacy app (agent-only collection):**
+**Legacy app — `legacy-lamp` namespace (agent-only collection):**
+
+A LAMP stack (Apache + PHP + MySQL) representing the "40% of the estate that can't be modified" — no OTel SDK, agent-only collection via sidecar.
 
 | Container | Image | Purpose |
 |-----------|-------|---------|
-| `nginx` | nginx:1.25-alpine | The legacy app — cannot be changed |
-| `nginx-exporter` | nginx-prometheus-exporter:1.1 | Sidecar exposing `/metrics` |
-| `otel-agent` | otel-collector-contrib | Sidecar: filelog + prometheus + hostmetrics |
+| `php-apache` | php:8.2-apache | Legacy PHP guestbook app — NO OTel SDK |
+| `mysqld-exporter` | prom/mysqld-exporter:v0.15.1 | MySQL metrics on :9104 |
+| `otel-agent` | otel-collector-contrib:0.91.0 | Sidecar: filelog (Apache logs) + prometheus (MySQL metrics) + hostmetrics |
 
-**Load generator**: K6 with 5 virtual users, 24h duration, 5% error rate to `/error` endpoint.
+Plus a standalone MySQL pod. See [legacy-lamp/deployment.yaml](sample-apps/legacy-lamp/deployment.yaml) for the full architecture.
+
+**Load generator — `load-gen` namespace**: K6 with 5 virtual users, 24h duration, 5% error rate to `/error` endpoint.
 
 Wait ~3 minutes for pods to start and telemetry to flow through the pipeline.
 
@@ -181,7 +193,7 @@ Open <http://localhost:8080> — Login: `admin` / password from above.
 
 ### What ArgoCD shows
 
-8 Application tiles with real-time health and sync status:
+9 Application tiles with real-time health and sync status:
 
 | Application | Source | Namespace |
 |-------------|--------|-----------|
@@ -192,9 +204,10 @@ Open <http://localhost:8080> — Login: `admin` / password from above.
 | otel-operator | opentelemetry-operator | observability |
 | otel-gateway | opentelemetry-collector | observability |
 | cluster-autoscaler | cluster-autoscaler | kube-system |
-| demo-apps | demo/sample-apps/ (git) | observability |
+| demo-legacy-lamp | demo/sample-apps/legacy-lamp (git) | legacy-lamp |
+| demo-load-gen | demo/sample-apps/load-generator (git) | load-gen |
 
-Each uses **multi-source**: Helm chart from upstream + values from this git repo.
+LGTM + OTel apps use **multi-source** (Helm chart from upstream + values from this git repo). Demo apps use **directory source** (raw YAML from git). nodejs-shop is deployed via Makefile (requires ECR image URI substitution).
 
 **Talking point**: "All deployment configuration lives in git. ArgoCD visualizes live state and detects drift — if someone changes something in the cluster that doesn't match git, it auto-heals back."
 
@@ -284,27 +297,43 @@ Breakdown by service and status code.
 
 For applications that **cannot be modified** (legacy, third-party, black-box), we use agent-only collection with sidecar containers.
 
-See [legacy-nginx/deployment.yaml](sample-apps/legacy-nginx/deployment.yaml) for the full 3-container architecture.
+See [legacy-lamp/deployment.yaml](sample-apps/legacy-lamp/deployment.yaml) for the full 3-container pod + MySQL architecture.
 
-### 8a. Nginx Logs (Loki)
+### 8a. Apache Access Logs (Loki)
 
 ```logql
-{service_name="legacy-nginx"} | json
+{service_name="legacy-lamp"} | json
 ```
 
-Shows structured nginx access logs with extracted fields: `method`, `status`, `request_time`, `user_agent`.
+Shows structured Apache access logs with extracted fields: `http.method`, `http.status_code`, `request_time`, `user_agent`.
 
-### 8b. Nginx Metrics (Mimir)
+### 8b. MySQL Metrics (Mimir)
 
 ```promql
-nginx_http_requests_total
+mysql_up
 ```
 
 ```promql
-rate(nginx_connections_accepted[5m])
+rate(mysql_global_status_queries[5m])
 ```
 
-**Talking point**: "Not every app can be instrumented. For legacy apps, we use agent-only collection — logs, metrics, and host telemetry with no code changes. We lose distributed tracing, but retain full operational visibility. This handles the ~40% of the estate that can't be modified."
+```promql
+mysql_global_status_threads_connected
+```
+
+These metrics come from the `mysqld-exporter` sidecar, scraped by the OTel Collector's `prometheus` receiver.
+
+### 8c. Host Metrics (Mimir)
+
+```promql
+system_cpu_utilization{service_name="legacy-lamp"}
+```
+
+```promql
+system_memory_utilization{service_name="legacy-lamp"}
+```
+
+**Talking point**: "Not every app can be instrumented. For this legacy LAMP stack, we use agent-only collection — Apache access logs, MySQL database metrics, and host telemetry with no code changes. We lose distributed tracing, but retain full operational visibility. This handles the ~40% of the estate that can't be modified."
 
 ---
 
@@ -328,7 +357,7 @@ The frontend has an `/error` endpoint that always returns HTTP 500. Generate sus
 
 ```bash
 kubectl run curl --image=curlimages/curl --rm -it --restart=Never -- \
-  sh -c "for i in \$(seq 1 600); do curl -s http://frontend.observability:3000/error; sleep 0.2; done"
+  sh -c "for i in \$(seq 1 600); do curl -s http://frontend.nodejs-app:3000/error; sleep 0.2; done"
 ```
 
 > This sends ~5 requests/sec for 2 minutes. The alert rule requires >5% error rate sustained for 1 minute before firing.
@@ -367,6 +396,8 @@ cat helm/otel-operator/collector-daemonset.yaml
 # Kubernetes infrastructure overview
 kubectl get nodes -o wide
 kubectl get pods -n observability
+kubectl get pods -n nodejs-app
+kubectl get pods -n legacy-lamp
 helm list -n observability
 kubectl get instrumentation -A
 ```
@@ -414,7 +445,7 @@ This automatically empties S3 buckets, removes the K8s namespace from Terraform 
 ```logql
 {service_name="frontend"}                                # All frontend logs
 {service_name="frontend"} |= "error"                     # Error logs
-{service_name="legacy-nginx"} | json                      # Parsed nginx logs
+{service_name="legacy-lamp"} | json                       # Parsed Apache logs
 {service_name="frontend"} | json | traceID != ``          # Logs with trace context
 ```
 
@@ -424,7 +455,8 @@ This automatically empties S3 buckets, removes the K8s namespace from Terraform 
 rate(http_server_duration_count[5m])                                          # Request rate
 histogram_quantile(0.99, rate(http_server_duration_bucket[5m]))               # p99 latency
 sum by (service_name, http_status_code) (rate(http_server_duration_count[5m]))  # By service + status
-nginx_http_requests_total                                                      # Legacy nginx requests
+mysql_up                                                                       # Legacy LAMP MySQL health
+rate(mysql_global_status_queries[5m])                                          # Legacy LAMP MySQL query rate
 rate(otelcol_receiver_accepted_spans_total[5m])                               # OTel pipeline throughput
 ```
 

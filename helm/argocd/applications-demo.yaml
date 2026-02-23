@@ -259,7 +259,32 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: demo-apps
+  name: demo-legacy-lamp
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/progerjkd/unified-observability-platform.git
+    path: demo/sample-apps/legacy-lamp
+    targetRevision: main
+    directory:
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: legacy-lamp
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-load-gen
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -270,15 +295,13 @@ spec:
     path: demo/sample-apps
     targetRevision: main
     directory:
-      recurse: true
-      include: "*.yaml"
-      exclude: "{nodejs-shop/**,load-generator.yaml}"
+      include: "load-generator.yaml"
   destination:
     server: https://kubernetes.default.svc
-    namespace: observability
+    namespace: load-gen
   syncPolicy:
     automated:
       selfHeal: true
     syncOptions:
-      - CreateNamespace=false
+      - CreateNamespace=true
       - ServerSideApply=true

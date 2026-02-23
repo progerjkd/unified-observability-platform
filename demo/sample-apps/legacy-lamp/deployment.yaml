@@ -1,0 +1,300 @@
+# Legacy LAMP Stack — agent-only observability (no code changes possible)
+# Demonstrates: filelog (Apache access logs), prometheus (MySQL metrics), hostmetrics
+# Architecture: PHP+Apache app pod (3 containers) + MySQL pod
+#
+# This is the "40% of the estate that can't be modified" use case.
+# No distributed tracing — only logs and metrics via OTel sidecar.
+---
+# --- ConfigMaps ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lamp-php-app
+  namespace: legacy-lamp
+data:
+  index.php: |
+    <?php
+    $host = getenv('MYSQL_HOST') ?: 'mysql';
+    $db   = getenv('MYSQL_DATABASE') ?: 'guestbook';
+    $user = getenv('MYSQL_USER') ?: 'app';
+    $pass = getenv('MYSQL_PASSWORD') ?: 'app-secret';
+
+    try {
+        $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->exec("INSERT INTO visits (visited_at) VALUES (NOW())");
+        $count = $pdo->query("SELECT COUNT(*) FROM visits")->fetchColumn();
+    } catch (PDOException $e) {
+        $count = "DB error: " . $e->getMessage();
+    }
+    ?>
+    <!DOCTYPE html>
+    <html>
+    <head><title>Legacy LAMP Guestbook</title></head>
+    <body>
+      <h1>Legacy LAMP Application</h1>
+      <p>This app has NO OpenTelemetry SDK. Observability is agent-only.</p>
+      <p>Total visits: <strong><?php echo $count; ?></strong></p>
+      <p>Server: <?php echo gethostname(); ?> | Time: <?php echo date('Y-m-d H:i:s'); ?></p>
+    </body>
+    </html>
+  health.php: |
+    <?php
+    http_response_code(200);
+    echo "OK";
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lamp-apache-config
+  namespace: legacy-lamp
+data:
+  apache-log-format.conf: |
+    LogFormat "{\"time\":\"%{%Y-%m-%dT%H:%M:%S%z}t\",\"remote_addr\":\"%a\",\"method\":\"%m\",\"uri\":\"%U%q\",\"status\":%>s,\"body_bytes_sent\":%B,\"request_time\":%D,\"user_agent\":\"%{User-Agent}i\"}" json_combined
+    CustomLog /var/log/apache2/access.log json_combined
+    ErrorLog /var/log/apache2/error.log
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-init
+  namespace: legacy-lamp
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS guestbook;
+    USE guestbook;
+    CREATE TABLE IF NOT EXISTS visits (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      visited_at DATETIME NOT NULL
+    );
+    CREATE USER IF NOT EXISTS 'app'@'%' IDENTIFIED BY 'app-secret';
+    GRANT ALL PRIVILEGES ON guestbook.* TO 'app'@'%';
+    FLUSH PRIVILEGES;
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lamp-otel-config
+  namespace: legacy-lamp
+data:
+  config.yaml: |
+    receivers:
+      filelog:
+        include: [/var/log/apache2/access.log]
+        operators:
+          - type: json_parser
+            timestamp:
+              parse_from: attributes.time
+              layout: '%Y-%m-%dT%H:%M:%S%z'
+          - type: move
+            from: attributes.method
+            to: attributes.http.method
+          - type: move
+            from: attributes.status
+            to: attributes.http.status_code
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'mysqld-exporter'
+              static_configs:
+                - targets: ['localhost:9104']
+      hostmetrics:
+        collection_interval: 30s
+        scrapers:
+          cpu: {}
+          memory: {}
+          network: {}
+    processors:
+      batch: {}
+      resource:
+        attributes:
+          - key: service.name
+            value: legacy-lamp
+            action: insert
+    exporters:
+      otlp:
+        endpoint: otel-gateway-opentelemetry-collector.observability.svc:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        logs:
+          receivers: [filelog]
+          processors: [resource, batch]
+          exporters: [otlp]
+        metrics:
+          receivers: [prometheus, hostmetrics]
+          processors: [resource, batch]
+          exporters: [otlp]
+---
+# --- MySQL ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: legacy-lamp
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: legacy-lamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: root-secret
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: mysql-init
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+              cpu: 250m
+      volumes:
+        - name: mysql-init
+          configMap:
+            name: mysql-init
+---
+# --- LAMP App (3 containers: php-apache + mysqld-exporter + otel-agent) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lamp-app
+  namespace: legacy-lamp
+spec:
+  selector:
+    app: lamp-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lamp-app
+  namespace: legacy-lamp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lamp-app
+  template:
+    metadata:
+      labels:
+        app: lamp-app
+    spec:
+      containers:
+        # Container 1: PHP + Apache — the "legacy" app (NO OTel SDK)
+        - name: php-apache
+          image: php:8.2-apache
+          ports:
+            - containerPort: 80
+          env:
+            - name: MYSQL_HOST
+              value: mysql
+            - name: MYSQL_DATABASE
+              value: guestbook
+            - name: MYSQL_USER
+              value: app
+            - name: MYSQL_PASSWORD
+              value: app-secret
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              docker-php-ext-install pdo pdo_mysql > /dev/null 2>&1 &&
+              cp /app/index.php /var/www/html/index.php &&
+              cp /app/health.php /var/www/html/health.php &&
+              cp /etc/apache2/extra/apache-log-format.conf /etc/apache2/conf-enabled/ &&
+              mkdir -p /var/log/apache2 &&
+              apache2-foreground
+          volumeMounts:
+            - name: php-app
+              mountPath: /app
+            - name: apache-config
+              mountPath: /etc/apache2/extra
+            - name: logs
+              mountPath: /var/log/apache2
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+              cpu: 200m
+          livenessProbe:
+            httpGet:
+              path: /health.php
+              port: 80
+            initialDelaySeconds: 45
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health.php
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 5
+
+        # Container 2: mysqld-exporter — MySQL metrics on :9104
+        - name: mysqld-exporter
+          image: prom/mysqld-exporter:v0.15.1
+          env:
+            - name: DATA_SOURCE_NAME
+              value: "app:app-secret@(mysql:3306)/guestbook"
+          ports:
+            - containerPort: 9104
+          resources:
+            limits:
+              memory: 64Mi
+              cpu: 50m
+
+        # Container 3: OTel Collector sidecar — agent-only collection
+        - name: otel-agent
+          image: otel/opentelemetry-collector-contrib:0.91.0
+          args: ['--config=/etc/otel/config.yaml']
+          volumeMounts:
+            - name: otel-config
+              mountPath: /etc/otel
+            - name: logs
+              mountPath: /var/log/apache2
+              readOnly: true
+          resources:
+            limits:
+              memory: 200Mi
+              cpu: 100m
+
+      volumes:
+        - name: php-app
+          configMap:
+            name: lamp-php-app
+        - name: apache-config
+          configMap:
+            name: lamp-apache-config
+        - name: otel-config
+          configMap:
+            name: lamp-otel-config
+        - name: logs
+          emptyDir: {}

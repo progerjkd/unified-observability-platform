@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: k6-script
-  namespace: observability
+  namespace: load-gen
 data:
   script.js: |
     import http from 'k6/http';
@@ -14,22 +14,22 @@ data:
     };
 
     export default function () {
-      // Normal traffic
+      // Normal traffic — Node.js shop (auto-instrumented) + LAMP app (agent-only)
       const endpoints = [
-        'http://frontend:3000/',
-        'http://frontend:3000/product/1',
-        'http://frontend:3000/product/2',
-        'http://frontend:3000/product/3',
-        'http://legacy-nginx/',
+        'http://frontend.nodejs-app:3000/',
+        'http://frontend.nodejs-app:3000/product/1',
+        'http://frontend.nodejs-app:3000/product/2',
+        'http://frontend.nodejs-app:3000/product/3',
+        'http://lamp-app.legacy-lamp/',
       ];
 
       const endpoint = endpoints[Math.floor(Math.random() * endpoints.length)];
       const res = http.get(endpoint);
       check(res, { 'status is 200': (r) => r.status === 200 });
 
-      // 5% error traffic
+      // 5% error traffic (Node.js only — LAMP has no /error endpoint)
       if (Math.random() < 0.05) {
-        http.get('http://frontend:3000/error');
+        http.get('http://frontend.nodejs-app:3000/error');
       }
 
       sleep(Math.random() * 5);
@@ -39,7 +39,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: load-generator
-  namespace: observability
+  namespace: load-gen
 spec:
   template:
     spec:

@@ -1,0 +1,34 @@
+# Auto-instrumentation CR for nodejs-app namespace — 100% sampling for demo
+# The OTel Operator requires an Instrumentation CR in the same namespace as the annotated pods.
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: otel-instrumentation
+  namespace: nodejs-app
+spec:
+  exporter:
+    endpoint: http://localhost:4317
+
+  propagators:
+    - tracecontext
+    - baggage
+
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1.0"  # 100% sampling for demo — all traces captured
+
+  nodejs:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:latest
+
+  java:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:latest
+
+  dotnet:
+    image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-dotnet:latest
+
+  resource:
+    addK8sUIDAttributes: true
+    resourceAttributes:
+      deployment.environment: demo
+      cloud.provider: aws
+      cloud.platform: aws_eks
