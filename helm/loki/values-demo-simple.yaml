@@ -37,6 +37,7 @@ loki:
 # Single binary deployment
 singleBinary:
   replicas: 1
+  affinity: {}    # Override default anti-affinity (not needed with 1 replica)
   resources:
     requests:
       cpu: "100m"

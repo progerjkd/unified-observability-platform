@@ -31,6 +31,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
@@ -68,6 +70,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
@@ -101,6 +105,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
@@ -134,6 +140,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
@@ -167,6 +175,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
@@ -209,6 +219,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
@@ -237,6 +249,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: kube-system
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
@@ -263,6 +277,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
+    automated:
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
