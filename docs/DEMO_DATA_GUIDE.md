@@ -198,20 +198,20 @@ kubectl apply -f demo/sample-apps/nodejs-shop/frontend/deployment.yaml
 kubectl apply -f demo/sample-apps/nodejs-shop/product-api/deployment.yaml
 ```
 
-### 2. Legacy Nginx (legacy-nginx/)
+### 2. Legacy LAMP Stack (legacy-lamp/)
 
 Demonstrates **agent-only collection** (no auto-instrumentation):
-- nginx container (no changes)
-- nginx-exporter sidecar (Prometheus metrics)
-- otel-agent sidecar (scrapes logs + metrics)
+- php-apache container (legacy PHP guestbook — no OTel SDK)
+- mysqld-exporter sidecar (MySQL metrics on :9104)
+- otel-agent sidecar (scrapes Apache logs + MySQL metrics + host metrics)
 
 **Deploy**:
 ```bash
-kubectl apply -f demo/sample-apps/legacy-nginx/deployment.yaml
+kubectl apply -f demo/sample-apps/legacy-lamp/deployment.yaml
 ```
 
 **What it shows**:
-> "Not every app can be instrumented. For legacy apps, we use agent-only collection - scraping logs and metrics without touching the app binary."
+> "Not every app can be instrumented. For this legacy LAMP stack, we use agent-only collection — Apache logs, MySQL metrics, and host telemetry without touching the app code."
 
 ---
 

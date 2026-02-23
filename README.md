@@ -646,7 +646,7 @@ make argocd-password  # Retrieve admin password
 make teardown-demo
 ```
 
-The [demo/](demo/) directory contains sample applications (auto-instrumented Node.js e-commerce shop, legacy nginx with agent-only collection, K6 load generator), Grafana query cheat sheets, ArgoCD setup, and full instructions. See [demo/README.md](demo/README.md) for details.
+The [demo/](demo/) directory contains sample applications (auto-instrumented Node.js e-commerce shop, legacy LAMP stack with agent-only collection, K6 load generator), Grafana query cheat sheets, ArgoCD setup, and full instructions. See [demo/README.md](demo/README.md) for details.
 
 ---
 
@@ -690,7 +690,7 @@ The [demo/](demo/) directory contains sample applications (auto-instrumented Nod
 │   ├── quick-demo-app.yaml             # Standalone demo app (lightweight alternative)
 │   └── sample-apps/
 │       ├── nodejs-shop/                # 3-tier e-commerce (frontend → product-api → inventory)
-│       ├── legacy-nginx/               # Agent-only collection (nginx + exporter + OTel sidecar)
+│       ├── legacy-lamp/                # Agent-only collection (LAMP + mysqld-exporter + OTel sidecar)
 │       └── load-generator.yaml         # K6 load generator (5 VUs, 5% error traffic)
 ├── scripts/
 │   ├── empty-s3-only.sh               # Empty versioned S3 buckets (pre-destroy)

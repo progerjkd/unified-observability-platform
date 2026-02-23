@@ -38,16 +38,16 @@ docker build -t inventory:latest nodejs-shop/inventory/
 # Update deployments to use local images (imagePullPolicy: Never)
 ```
 
-### 2. Legacy Nginx App (`legacy-nginx/`)
+### 2. Legacy LAMP Stack (`legacy-lamp/`)
 
 Demonstrates agent-only collection for apps that can't be instrumented:
-- nginx container (no instrumentation)
-- nginx-exporter sidecar (exposes Prometheus metrics)
-- otel-agent sidecar (scrapes logs + metrics)
+- php-apache container (legacy PHP guestbook — no OTel SDK)
+- mysqld-exporter sidecar (MySQL metrics on :9104)
+- otel-agent sidecar (scrapes Apache logs + MySQL metrics + host metrics)
 
 **Deploy**:
 ```bash
-kubectl apply -f legacy-nginx/deployment.yaml
+kubectl apply -f legacy-lamp/deployment.yaml
 ```
 
 ### 3. Load Generator (`load-generator.yaml`)
@@ -69,7 +69,7 @@ kubectl apply -f load-generator.yaml
 2. Deploy sample apps:
    ```bash
    kubectl apply -f demo/sample-apps/nodejs-shop/
-   kubectl apply -f demo/sample-apps/legacy-nginx/
+   kubectl apply -f demo/sample-apps/legacy-lamp/
    ```
 
 3. Start load generator:
@@ -79,7 +79,7 @@ kubectl apply -f load-generator.yaml
 
 4. Open Grafana and explore:
    - Tempo: Search for service `frontend` — see distributed traces
-   - Loki: Query `{service_name="legacy-nginx"}` — see parsed nginx logs
+   - Loki: Query `{service_name="legacy-lamp"} | json` — see parsed Apache logs
    - Mimir: Query `rate(http_server_requests_total[5m])` — see request rate
 
 5. Trigger errors for demo:

@@ -28,7 +28,7 @@ For the demo, we'll deploy a **scaled-down version** of the production architect
 | **EKS nodes** | r7g.xlarge + m7g.large | 2-4x Graviton Spot (autoscaled) | 70% cost reduction |
 | **Mimir ingesters** | 3 replicas, dedicated nodes | 1 replica, shared nodes | Sufficient for demo load |
 | **Loki/Tempo** | 3/2/2 replicas | 1 replica each | Minimal HA for demo |
-| **Sample apps** | N/A | 3 deployments | Node.js + Python + legacy nginx |
+| **Sample apps** | N/A | 3 deployments | Node.js + legacy LAMP + load generator |
 | **On-prem** | 200+ hosts | 1 EC2 simulating on-prem | Demonstrate pattern |
 
 ### Terraform Variables for Demo
@@ -136,40 +136,40 @@ A simple REST API showing Python auto-instrumentation:
 
 ---
 
-### 3. Legacy App — Agent-Only Collection (Nginx)
+### 3. Legacy App — Agent-Only Collection (LAMP Stack)
 
-**Location**: `demo/sample-apps/legacy-nginx/`
+**Location**: `demo/sample-apps/legacy-lamp/`
 
-An nginx web server simulating a legacy application that **cannot be modified**:
-- No code changes possible
+A LAMP stack (Apache + PHP + MySQL) simulating a legacy application that **cannot be modified**:
+- No code changes possible — standard PHP with no OTel SDK
 - No auto-instrumentation
-- Agent scrapes host metrics, access logs, and Prometheus metrics from nginx-exporter sidecar
+- OTel sidecar scrapes Apache access logs, MySQL metrics via mysqld-exporter, and host metrics
 
 **Architecture**:
 ```
 ┌──────────────────────────────────────────────────────┐
-│                     Pod                               │
+│                  lamp-app Pod                         │
 │                                                       │
-│  ┌────────────┐   Access    ┌─────────────────────┐  │
-│  │   nginx    │─── logs ───▶│  OTel Agent         │  │
-│  │ (legacy)   │             │  (filelog receiver) │  │
-│  └────────────┘             └─────────────────────┘  │
-│        │                              │               │
-│        │ :9113                        │               │
-│  ┌─────▼──────────┐                  │               │
-│  │ nginx-exporter │ /metrics         │               │
-│  │  (Prometheus)  │──────────────────┘               │
-│  └────────────────┘   (prometheus receiver)          │
+│  ┌────────────────┐  Access   ┌─────────────────────┐│
+│  │  php-apache    │── logs ──▶│  OTel Agent         ││
+│  │ (legacy LAMP)  │           │  (filelog receiver) ││
+│  └────────────────┘           └─────────────────────┘│
+│                                        │              │
+│        :9104                           │              │
+│  ┌─────────────────┐                   │              │
+│  │ mysqld-exporter │ /metrics          │              │
+│  │  (Prometheus)   │──────────────────┘               │
+│  └─────────────────┘   (prometheus receiver)          │
 └──────────────────────────────────────────────────────┘
                            │ OTLP
-                    OTel DaemonSet
+                    OTel Gateway
 ```
 
 **What it demonstrates**:
 - **Agent-only collection** for legacy apps that can't be changed
-- **filelog receiver** — parses nginx access logs, extracts HTTP status, latency, user agent
-- **prometheus receiver** — scrapes nginx-exporter for metrics (requests/sec, response codes, active connections)
-- **hostmetrics receiver** — CPU, memory, disk, network from the pod/host
+- **filelog receiver** — parses Apache JSON access logs, extracts HTTP method, status, request time
+- **prometheus receiver** — scrapes mysqld-exporter for MySQL metrics (queries/sec, connections, uptime)
+- **hostmetrics receiver** — CPU, memory, network from the pod/host
 - No distributed tracing, but still full visibility into metrics and logs
 
 ---
@@ -304,47 +304,40 @@ kubectl get opentelemetrycollector -n observability
 
 **Steps**:
 
-1. **Deploy the legacy nginx app**:
+1. **The LAMP stack is already deployed** (via `make deploy-demo-apps`):
    ```bash
-   kubectl apply -f demo/sample-apps/legacy-nginx/
-   kubectl get pods
+   kubectl get pods -n legacy-lamp
    ```
 
 2. **Show the architecture**:
-   - Open `demo/sample-apps/legacy-nginx/deployment.yaml`
-   - Show three containers:
-     1. `nginx` — the legacy app (no instrumentation)
-     2. `nginx-exporter` — sidecar exposing Prometheus `/metrics` endpoint
+   - Open `demo/sample-apps/legacy-lamp/deployment.yaml`
+   - Show three containers in the lamp-app pod:
+     1. `php-apache` — the legacy PHP guestbook app (no OTel SDK)
+     2. `mysqld-exporter` — sidecar exposing MySQL metrics on `:9104`
      3. `otel-agent` — sidecar running OTel Collector with `filelog`, `prometheus`, `hostmetrics` receivers
-   - "We can't change the nginx binary, but we can scrape its logs and metrics"
+   - "We can't change the PHP app, but we can scrape its Apache logs and MySQL metrics"
 
-3. **Generate traffic**:
-   ```bash
-   kubectl run curl --image=curlimages/curl --rm -it --restart=Never -- \
-     sh -c "for i in {1..100}; do curl http://legacy-nginx/; sleep 0.1; done"
-   ```
-
-4. **Show logs in Grafana**:
+3. **Show logs in Grafana**:
    - Grafana → Explore → Loki
-   - Query: `{service_name="legacy-nginx"}`
-   - Show parsed log lines with fields: `method`, `status_code`, `response_time_ms`, `user_agent`
-   - "The OTel filelog receiver parsed nginx access logs using regex and extracted these fields"
+   - Query: `{service_name="legacy-lamp"} | json`
+   - Show parsed log lines with fields: `http.method`, `http.status_code`, `request_time`, `user_agent`
+   - "The OTel filelog receiver parsed Apache JSON access logs and extracted these fields"
 
-5. **Show metrics in Grafana**:
-   - Grafana → Explore → Mimir (Prometheus)
-   - Query: `rate(nginx_http_requests_total[5m])`
-   - Show request rate graph
-   - "These metrics come from the nginx-exporter sidecar, scraped by the OTel agent's prometheus receiver"
+4. **Show MySQL metrics in Grafana**:
+   - Grafana → Explore → Mimir
+   - Query: `mysql_up`
+   - Query: `rate(mysql_global_status_queries[5m])`
+   - "These metrics come from the mysqld-exporter sidecar, scraped by the OTel agent's prometheus receiver"
 
-6. **Show host metrics**:
-   - Query: `system_cpu_utilization{service_name="legacy-nginx"}`
-   - Query: `system_memory_usage{service_name="legacy-nginx"}`
-   - "The hostmetrics receiver gives us CPU, memory, disk, network — even for legacy apps"
+5. **Show host metrics**:
+   - Query: `system_cpu_utilization{service_name="legacy-lamp"}`
+   - Query: `system_memory_utilization{service_name="legacy-lamp"}`
+   - "The hostmetrics receiver gives us CPU, memory, network — even for legacy apps"
 
 **Talking Points**:
 - "Not every app can be instrumented — some are legacy, third-party binaries, or vendor appliances"
-- "Agent-only collection still gives us logs, metrics, and host telemetry"
-- "We lose distributed tracing, but we retain operational visibility"
+- "Agent-only collection still gives us Apache logs, MySQL database metrics, and host telemetry"
+- "We lose distributed tracing, but we retain full operational visibility"
 - "This is how we handle the ~40% of the estate that can't be modified"
 
 ---
@@ -637,7 +630,7 @@ kubectl run curl --image=curlimages/curl --rm -it --restart=Never -- \
 **Loki (Logs)**:
 - `{service_name="frontend"}` — all logs from frontend
 - `{service_name="frontend"} |= "error"` — filter for "error" in logs
-- `{service_name="legacy-nginx"} | json` — parse JSON logs
+- `{service_name="legacy-lamp"} | json` — parse Apache JSON logs
 
 **Mimir (Metrics)**:
 - `rate(http_server_requests_total[5m])` — request rate
@@ -702,7 +695,7 @@ By the end of the demo, the panel should understand:
 
 And they should have seen:
 - ✅ Auto-instrumentation in action (Node.js + Python)
-- ✅ Legacy app collection (nginx logs + metrics)
+- ✅ Legacy app collection (LAMP: Apache logs + MySQL metrics)
 - ✅ Cross-signal correlation (metrics → traces → logs)
 - ✅ Alerting pipeline (alert fires → drill-down to root cause)
 - ✅ Infrastructure as Code (Terraform modules, Helm charts)
