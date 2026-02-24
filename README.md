@@ -449,14 +449,14 @@ Every compute platform type in the environment has a tailored OTel Collector dep
 ```
  ┌─────────────────────────────────────────────────────────────────┐
  │                      Signal Flow                                │
- │                                                                  │
- │  METRICS:  App/Host ──▶ OTel Agent ──▶ Gateway ──▶ Mimir (S3)  │
- │            (otlp, hostmetrics, iis)        │         PromQL     │
- │                                             │                    │
+ │                                                                 │
+ │  METRICS:  App/Host ──▶ OTel Agent ──▶ Gateway ──▶ Mimir (S3)   │
+ │            (otlp, hostmetrics, iis)          │       PromQL     │
+ │                                              │                  │
  │  LOGS:     Files/Events ──▶ OTel Agent ──▶ Gateway ──▶ Loki (S3)│
- │            (filelog, windowseventlog, syslog)│         LogQL     │
- │                                             │                    │
- │  TRACES:   App SDK ──▶ OTel Agent ──▶ Gateway ──▶ Tempo (S3)   │
+ │            (filelog, windowseventlog, syslog)│         LogQL    │
+ │                                              │                  │
+ │  TRACES:   App SDK ──▶ OTel Agent ──▶ Gateway ──▶ Tempo (S3)    │
  │            (otlp)                    (tail sample)   TraceQL    │
  └─────────────────────────────────────────────────────────────────┘
 ```
