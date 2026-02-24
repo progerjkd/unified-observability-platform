@@ -106,20 +106,20 @@ The platform follows a **three-layer architecture**:
 
 ### What OpenTelemetry provides
 
-| Component | Role | How we use it |
-|---|---|---|
-| **OTel SDK** | Language-specific instrumentation libraries | Auto-instruments Java, .NET Core, and Node.js apps — no code changes |
-| **OTel Collector** | Vendor-agnostic telemetry pipeline (receive → process → export) | Runs as agent on every host + centralized gateway cluster |
-| **OTLP Protocol** | Standard wire protocol for all three signals | Unified transport between agents, gateway, and backends |
-| **OTel Operator** | Kubernetes operator for managing Collectors and auto-instrumentation | Manages DaemonSet agents and injects instrumentation via pod annotations |
+| Component          | Role                                                                 | How we use it                                                            |
+| ------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| **OTel SDK**       | Language-specific instrumentation libraries                          | Auto-instruments Java, .NET Core, and Node.js apps — no code changes     |
+| **OTel Collector** | Vendor-agnostic telemetry pipeline (receive → process → export)      | Runs as agent on every host + centralized gateway cluster                |
+| **OTLP Protocol**  | Standard wire protocol for all three signals                         | Unified transport between agents, gateway, and backends                  |
+| **OTel Operator**  | Kubernetes operator for managing Collectors and auto-instrumentation | Manages DaemonSet agents and injects instrumentation via pod annotations |
 
 ### OTel Collector Pipeline Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                     OTel Collector Pipeline                       │
-│                                                                   │
-│  ┌───────────┐    ┌────────────┐    ┌───────────┐               │
+│                     OTel Collector Pipeline                      │
+│                                                                  │
+│  ┌────────────┐    ┌────────────┐    ┌───────────┐               │
 │  │ Receivers  │───▶│ Processors │───▶│ Exporters │               │
 │  │            │    │            │    │           │               │
 │  │ • otlp     │    │ • batch    │    │ • otlp    │               │
@@ -127,8 +127,8 @@ The platform follows a **three-layer architecture**:
 │  │ • filelog  │    │ • resource │    │ • promethe│               │
 │  │ • winlog   │    │ • k8sattr  │    │           │               │
 │  │ • iis      │    │ • sampling │    │           │               │
-│  └───────────┘    └────────────┘    └───────────┘               │
-│                                                                   │
+│  └────────────┘    └────────────┘    └───────────┘               │
+│                                                                  │
 │  Extensions: health_check, file_storage (persistent queue)       │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -137,14 +137,14 @@ The platform follows a **three-layer architecture**:
 
 ### Why not just use vendor-specific agents?
 
-| Criteria | OpenTelemetry | Vendor Agents (Datadog, New Relic, etc.) |
-|---|---|---|
-| **Vendor lock-in** | None — OTLP is an open standard | Full — proprietary protocols and formats |
-| **Backend flexibility** | Switch backends without changing agents | Locked to one vendor |
-| **Coverage** | Single agent for metrics + logs + traces | Often requires multiple agents |
-| **Community** | CNCF-backed, 1000+ contributors | Single-vendor development |
-| **Cost** | Open-source, no per-agent licensing | Per-host or per-GB fees |
-| **Auto-instrumentation** | Java, .NET, Node.js, Python, Go, PHP | Varies by vendor |
+| Criteria                 | OpenTelemetry                            | Vendor Agents (Datadog, New Relic, etc.) |
+| ------------------------ | ---------------------------------------- | ---------------------------------------- |
+| **Vendor lock-in**       | None — OTLP is an open standard          | Full — proprietary protocols and formats |
+| **Backend flexibility**  | Switch backends without changing agents  | Locked to one vendor                     |
+| **Coverage**             | Single agent for metrics + logs + traces | Often requires multiple agents           |
+| **Community**            | CNCF-backed, 1000+ contributors          | Single-vendor development                |
+| **Cost**                 | Open-source, no per-agent licensing      | Per-host or per-GB fees                  |
+| **Auto-instrumentation** | Java, .NET, Node.js, Python, Go, PHP     | Varies by vendor                         |
 
 ---
 
@@ -169,6 +169,7 @@ All four LGTM components are **open-source** (AGPLv3 / Apache 2.0). The platform
 ### 2. S3-compatible object storage = portable data
 
 Mimir, Loki, and Tempo all use **S3-compatible object storage** as their primary long-term storage backend. This means:
+
 - **AWS**: Use native S3 with lifecycle policies (Standard → IA → Glacier)
 - **On-prem**: Drop in [MinIO](https://min.io/) as an S3-compatible replacement
 - **Migration**: Data is portable between clouds — no proprietary storage format
@@ -176,6 +177,7 @@ Mimir, Loki, and Tempo all use **S3-compatible object storage** as their primary
 ### 3. Native cross-signal correlation
 
 Grafana provides **built-in links between all three signals** without custom glue code:
+
 - Metrics → Traces via exemplars (click a data point, see the trace)
 - Logs → Traces via derived fields (extract `traceID`, jump to Tempo)
 - Traces → Logs via Tempo-to-Loki correlation (view logs inline in trace view)
@@ -183,17 +185,18 @@ Grafana provides **built-in links between all three signals** without custom glu
 
 ### 4. Proven scale
 
-| Component | Proven Scale | Our Scale |
-|---|---|---|
-| **Mimir** | 1 billion+ active series (Grafana Cloud) | ~50K–250K active series |
-| **Loki** | Petabytes of logs (Grafana Cloud) | ~60 GB/day compressed |
-| **Tempo** | Trillions of spans (Grafana Cloud) | ~10–50 GB/day after sampling |
+| Component | Proven Scale                             | Our Scale                    |
+| --------- | ---------------------------------------- | ---------------------------- |
+| **Mimir** | 1 billion+ active series (Grafana Cloud) | ~50K–250K active series      |
+| **Loki**  | Petabytes of logs (Grafana Cloud)        | ~60 GB/day compressed        |
+| **Tempo** | Trillions of spans (Grafana Cloud)       | ~10–50 GB/day after sampling |
 
 We are operating well within the proven limits of each component.
 
 ### 5. Unified query language ecosystem
 
 Each backend has a purpose-built, expressive query language:
+
 - **PromQL** (Mimir) — the industry standard for metrics, compatible with existing Prometheus dashboards
 - **LogQL** (Loki) — Prometheus-inspired syntax for log querying and aggregation
 - **TraceQL** (Tempo) — SQL-like trace querying with span-level filtering
@@ -211,6 +214,7 @@ Each backend has a purpose-built, expressive query language:
 [Grafana Mimir](https://grafana.com/oss/mimir/) is a horizontally scalable, highly available metrics backend that provides **long-term storage for Prometheus metrics** with global query capabilities.
 
 **Key characteristics:**
+
 - **PromQL-compatible** — drop-in replacement for Prometheus for querying, works with all existing dashboards and alert rules
 - **Multi-tenant** — isolates data by tenant for shared infrastructure
 - **Microservices architecture** — independently scalable components (distributor, ingester, querier, compactor, store-gateway)
@@ -221,28 +225,29 @@ Each backend has a purpose-built, expressive query language:
 ```
                     ┌──────────────┐
     OTLP metrics ──▶│ Distributor  │──▶ Consistent hash ring
-                    │  (2 replicas) │
+                    │  (2 replicas)│
                     └──────────────┘
                            │
                     ┌──────▼───────┐
                     │  Ingesters   │──▶ In-memory + WAL
-                    │  (3 replicas) │──▶ Flush to S3 every 2h
+                    │  (3 replicas)│──▶ Flush to S3 every 2h
                     └──────────────┘
                            │
-                    ┌──────▼───────┐     ┌──────────────┐
-                    │  Compactor   │     │ Store-Gateway │
+                    ┌──────▼────────┐     ┌────────────────┐
+                    │  Compactor    │     │ Store-Gateway  │
                     │  (1 replica)  │     │  (2 replicas)  │
-                    │  Merges blocks│     │  Serves queries │
-                    └──────────────┘     │  from S3       │
-                                         └──────────────┘
+                    │  Merges blocks│     │  Serves queries│
+                    └───────────────┘     │  from S3       │
+                                          └────────────────┘
                                                 │
                     ┌───────────────┐    ┌──────▼───────┐
                     │ Query-Frontend│───▶│   Querier    │
-                    │  (2 replicas)  │    │  (2 replicas) │
+                    │  (2 replicas) │    │  (2 replicas)│
                     └───────────────┘    └──────────────┘
 ```
 
 **Our configuration** ([helm/mimir/values.yaml](helm/mimir/values.yaml)):
+
 - 3 ingesters on dedicated `r7g.xlarge` nodes (memory-optimized for time-series data)
 - S3 storage with 90-day hot → 180-day IA → 365-day Glacier lifecycle
 - IRSA (IAM Roles for Service Accounts) for S3 access — no static credentials
@@ -261,6 +266,7 @@ Each backend has a purpose-built, expressive query language:
 [Grafana Loki](https://grafana.com/oss/loki/) is a horizontally scalable log aggregation system inspired by Prometheus. Unlike traditional log systems (Elasticsearch, Splunk), Loki **indexes only metadata labels** — not the full text of log lines — making it significantly cheaper to operate at scale.
 
 **Key characteristics:**
+
 - **Label-based indexing** — stores logs indexed by labels (e.g., `service_name`, `environment`), not full-text. Dramatically reduces index size and cost
 - **LogQL** — Prometheus-inspired query language for filtering, parsing, and aggregating logs
 - **Same storage as metrics** — uses S3 for both index and chunks
@@ -268,15 +274,16 @@ Each backend has a purpose-built, expressive query language:
 
 **How it differs from Elasticsearch / ELK:**
 
-| Feature | Loki | Elasticsearch |
-|---|---|---|
-| **Indexing** | Labels only (lightweight) | Full-text indexing (expensive) |
-| **Storage cost** | Low — compressed chunks in S3 | High — requires fast SSD for indexes |
-| **Query speed** | Fast for label-filtered queries | Fast for full-text search |
+| Feature                  | Loki                                | Elasticsearch                                      |
+| ------------------------ | ----------------------------------- | -------------------------------------------------- |
+| **Indexing**             | Labels only (lightweight)           | Full-text indexing (expensive)                     |
+| **Storage cost**         | Low — compressed chunks in S3       | High — requires fast SSD for indexes               |
+| **Query speed**          | Fast for label-filtered queries     | Fast for full-text search                          |
 | **Operational overhead** | Low — stateless readers, S3 storage | High — JVM tuning, shard management, cluster state |
-| **Integration** | Native Grafana + OTel | Requires Kibana + Beats/Logstash |
+| **Integration**          | Native Grafana + OTel               | Requires Kibana + Beats/Logstash                   |
 
 **Our deployment** ([helm/loki/values.yaml](helm/loki/values.yaml)):
+
 - Simple Scalable mode (write/read/backend separation)
 - 3 write replicas, 2 read replicas, 2 backend replicas
 - TSDB schema v13 with S3 storage
@@ -295,6 +302,7 @@ Each backend has a purpose-built, expressive query language:
 [Grafana Tempo](https://grafana.com/oss/tempo/) is a high-scale distributed tracing backend that requires **only object storage** (S3) to operate. It accepts trace data in OpenTelemetry, Jaeger, and Zipkin formats.
 
 **Key characteristics:**
+
 - **No indexing required** — traces are stored by trace ID in object storage; Tempo uses a bloom filter and columnar (Parquet) format for efficient search
 - **Extremely cost-effective** — no dedicated index nodes, no Elasticsearch, just S3
 - **TraceQL** — SQL-like query language for searching traces by span attributes, duration, status
@@ -316,6 +324,7 @@ Each backend has a purpose-built, expressive query language:
 ```
 
 **Our deployment** ([helm/tempo/values.yaml](helm/tempo/values.yaml)):
+
 - Distributed mode with 3 ingesters, 2 distributors, 2 queriers
 - 14-day trace retention in S3
 - Metrics generator enabled — pushes RED metrics + service graph to Mimir
@@ -334,19 +343,19 @@ Each backend has a purpose-built, expressive query language:
 
 **Pre-provisioned datasources** ([helm/grafana/values.yaml](helm/grafana/values.yaml)):
 
-| Datasource | Signal | Query Language | Correlation |
-|---|---|---|---|
-| Mimir | Metrics | PromQL | Exemplars → Tempo traces |
-| Loki | Logs | LogQL | Derived fields → Tempo traces |
-| Tempo | Traces | TraceQL | Trace-to-logs (Loki), trace-to-metrics (Mimir), service map |
+| Datasource | Signal  | Query Language | Correlation                                                 |
+| ---------- | ------- | -------------- | ----------------------------------------------------------- |
+| Mimir      | Metrics | PromQL         | Exemplars → Tempo traces                                    |
+| Loki       | Logs    | LogQL          | Derived fields → Tempo traces                               |
+| Tempo      | Traces  | TraceQL        | Trace-to-logs (Loki), trace-to-metrics (Mimir), service map |
 
 **Pre-provisioned dashboards** ([dashboards/](dashboards/)):
 
-| Dashboard | Purpose |
-|---|---|
-| **Platform Overview** | Agent health across all 8 platform types, grouped by environment |
-| **Service Health** | RED metrics (Rate, Errors, Duration) per service, with service topology graph |
-| **Infrastructure** | Host-level CPU, memory, disk I/O, network, filesystem usage |
+| Dashboard             | Purpose                                                                       |
+| --------------------- | ----------------------------------------------------------------------------- |
+| **Platform Overview** | Agent health across all 8 platform types, grouped by environment              |
+| **Service Health**    | RED metrics (Rate, Errors, Duration) per service, with service topology graph |
+| **Infrastructure**    | Host-level CPU, memory, disk I/O, network, filesystem usage                   |
 
 **Alerting pipeline:**
 
@@ -364,55 +373,55 @@ Loki ruler (LogQL rules)   ──▶ Alertmanager ──▶ Slack (warning)
 
 [Datadog](https://www.datadoghq.com/) is a leading managed observability platform, but was ruled out for this use case:
 
-| Factor | Datadog | Our LGTM Solution |
-|---|---|---|
-| **Cost at 500 hosts** | ~$12,000–$25,000/mo ($15–$23/host for Infra + APM + Logs) | ~$2,840/mo (self-hosted) |
-| **Vendor lock-in** | Proprietary agent, protocol, and storage | Open standards (OTel, S3, PromQL) |
-| **Data residency** | Data sent to Datadog SaaS | Data stays in our AWS account / on-prem |
-| **On-prem support** | Limited (requires internet egress) | Full — MinIO replaces S3 for on-prem |
-| **Customization** | Limited to vendor roadmap | Full control over pipeline and storage |
+| Factor                | Datadog                                                   | Our LGTM Solution                       |
+| --------------------- | --------------------------------------------------------- | --------------------------------------- |
+| **Cost at 500 hosts** | ~$12,000–$25,000/mo ($15–$23/host for Infra + APM + Logs) | ~$2,840/mo (self-hosted)                |
+| **Vendor lock-in**    | Proprietary agent, protocol, and storage                  | Open standards (OTel, S3, PromQL)       |
+| **Data residency**    | Data sent to Datadog SaaS                                 | Data stays in our AWS account / on-prem |
+| **On-prem support**   | Limited (requires internet egress)                        | Full — MinIO replaces S3 for on-prem    |
+| **Customization**     | Limited to vendor roadmap                                 | Full control over pipeline and storage  |
 
 **Datadog is excellent** for smaller fleets or teams that prefer fully managed solutions. At 500 instances with on-prem requirements, the cost and lock-in become significant.
 
 ### Why not New Relic?
 
-| Factor | New Relic | Our LGTM Solution |
-|---|---|---|
-| **Pricing model** | Per-GB ingestion ($0.30–$0.50/GB) | S3 storage only (~$0.023/GB/mo) |
-| **Cost at our volume** | ~$8,000–$15,000/mo | ~$2,840/mo |
-| **On-prem visibility** | Requires internet egress | Native via Direct Connect |
-| **Query language** | NRQL (proprietary) | PromQL + LogQL + TraceQL (open) |
+| Factor                 | New Relic                         | Our LGTM Solution               |
+| ---------------------- | --------------------------------- | ------------------------------- |
+| **Pricing model**      | Per-GB ingestion ($0.30–$0.50/GB) | S3 storage only (~$0.023/GB/mo) |
+| **Cost at our volume** | ~$8,000–$15,000/mo                | ~$2,840/mo                      |
+| **On-prem visibility** | Requires internet egress          | Native via Direct Connect       |
+| **Query language**     | NRQL (proprietary)                | PromQL + LogQL + TraceQL (open) |
 
 ### Why not the ELK Stack (Elasticsearch + Logstash + Kibana)?
 
-| Factor | ELK Stack | Our LGTM Solution |
-|---|---|---|
-| **Scope** | Primarily logs + APM (Elastic APM) | Native metrics + logs + traces |
-| **Storage cost** | High — full-text indexing requires fast SSDs | Low — label-indexed logs in S3 |
-| **Operational burden** | JVM heap tuning, shard management, split-brain | Stateless components backed by S3 |
-| **Metrics** | Bolted on (less mature than Prometheus ecosystem) | PromQL-native (Mimir) |
-| **License** | SSPL (not truly open-source since 2021) | AGPLv3 / Apache 2.0 |
+| Factor                 | ELK Stack                                         | Our LGTM Solution                 |
+| ---------------------- | ------------------------------------------------- | --------------------------------- |
+| **Scope**              | Primarily logs + APM (Elastic APM)                | Native metrics + logs + traces    |
+| **Storage cost**       | High — full-text indexing requires fast SSDs      | Low — label-indexed logs in S3    |
+| **Operational burden** | JVM heap tuning, shard management, split-brain    | Stateless components backed by S3 |
+| **Metrics**            | Bolted on (less mature than Prometheus ecosystem) | PromQL-native (Mimir)             |
+| **License**            | SSPL (not truly open-source since 2021)           | AGPLv3 / Apache 2.0               |
 
 ### Why not AWS-native (CloudWatch + X-Ray)?
 
-| Factor | CloudWatch + X-Ray | Our LGTM Solution |
-|---|---|---|
-| **Cost at scale** | ~$4,000–$8,000/mo (per-metric, per-GB) | ~$2,840/mo |
-| **On-prem support** | CloudWatch agent only, no X-Ray on-prem | Full parity across all platforms |
-| **Portability** | AWS-only | Multi-cloud, on-prem compatible |
-| **Correlation** | Limited (no exemplars, basic trace-log linking) | Full cross-signal correlation |
-| **Query power** | CloudWatch Insights (limited) | PromQL + LogQL + TraceQL |
+| Factor              | CloudWatch + X-Ray                              | Our LGTM Solution                |
+| ------------------- | ----------------------------------------------- | -------------------------------- |
+| **Cost at scale**   | ~$4,000–$8,000/mo (per-metric, per-GB)          | ~$2,840/mo                       |
+| **On-prem support** | CloudWatch agent only, no X-Ray on-prem         | Full parity across all platforms |
+| **Portability**     | AWS-only                                        | Multi-cloud, on-prem compatible  |
+| **Correlation**     | Limited (no exemplars, basic trace-log linking) | Full cross-signal correlation    |
+| **Query power**     | CloudWatch Insights (limited)                   | PromQL + LogQL + TraceQL         |
 
 ### Summary Comparison
 
-| Solution | Monthly Cost (500 hosts) | Vendor Lock-in | On-Prem Support | Cross-Signal Correlation |
-|---|---|---|---|---|
-| **Self-hosted LGTM** | **~$2,840** | **None** | **Full** | **Native** |
-| Grafana Cloud | ~$5,000–$12,000 | Low (same OSS stack) | Partial | Native |
-| Datadog | ~$12,000–$25,000 | High | Limited | Good |
-| New Relic | ~$8,000–$15,000 | High | Limited | Good |
-| ELK Stack (self-hosted) | ~$4,000–$6,000 | Medium (SSPL) | Full | Limited |
-| AWS CloudWatch + X-Ray | ~$4,000–$8,000 | High (AWS-only) | Limited | Basic |
+| Solution                | Monthly Cost (500 hosts) | Vendor Lock-in       | On-Prem Support | Cross-Signal Correlation |
+| ----------------------- | ------------------------ | -------------------- | --------------- | ------------------------ |
+| **Self-hosted LGTM**    | **~$2,840**              | **None**             | **Full**        | **Native**               |
+| Grafana Cloud           | ~$5,000–$12,000          | Low (same OSS stack) | Partial         | Native                   |
+| Datadog                 | ~$12,000–$25,000         | High                 | Limited         | Good                     |
+| New Relic               | ~$8,000–$15,000          | High                 | Limited         | Good                     |
+| ELK Stack (self-hosted) | ~$4,000–$6,000           | Medium (SSPL)        | Full            | Limited                  |
+| AWS CloudWatch + X-Ray  | ~$4,000–$8,000           | High (AWS-only)      | Limited         | Basic                    |
 
 ---
 
@@ -420,16 +429,16 @@ Loki ruler (LogQL rules)   ──▶ Alertmanager ──▶ Slack (warning)
 
 Every compute platform type in the environment has a tailored OTel Collector deployment:
 
-| Platform | Agent Deployment | Key Receivers | Config |
-|---|---|---|---|
-| **EKS Linux** | DaemonSet via OTel Operator | `otlp`, `hostmetrics`, `kubeletstats`, `filelog` (pod logs) | [collector-daemonset.yaml](helm/otel-operator/collector-daemonset.yaml) |
-| **ECS Fargate** | Sidecar container | `otlp`, `awsecscontainermetrics` | [otel-agent-fargate.yaml](configs/otel-agent-fargate.yaml) |
-| **ECS EC2 Linux** | ECS daemon task | `otlp`, `hostmetrics`, `filelog`, `docker_stats` | [otel-agent-linux.yaml](configs/otel-agent-linux.yaml) |
-| **ECS EC2 Windows** | Windows Service (MSI) | `otlp`, `hostmetrics`, `windowseventlog`, `iis` | [otel-agent-windows.yaml](configs/otel-agent-windows.yaml) |
-| **EC2 Linux** | systemd service | `otlp`, `hostmetrics`, `filelog`, `syslog` | [otel-agent-linux.yaml](configs/otel-agent-linux.yaml) |
-| **EC2 Windows** | Windows Service (MSI) | `otlp`, `hostmetrics`, `windowseventlog`, `iis` | [otel-agent-windows.yaml](configs/otel-agent-windows.yaml) |
-| **On-prem Linux** | systemd (via Ansible) | `otlp`, `hostmetrics`, `filelog`, `syslog` | [otel-agent-linux.yaml.j2](ansible/templates/otel-agent-linux.yaml.j2) |
-| **On-prem Windows** | Windows Service (via Ansible) | `otlp`, `hostmetrics`, `windowseventlog`, `iis` | [otel-agent-windows.yaml.j2](ansible/templates/otel-agent-windows.yaml.j2) |
+| Platform            | Agent Deployment              | Key Receivers                                               | Config                                                                     |
+| ------------------- | ----------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **EKS Linux**       | DaemonSet via OTel Operator   | `otlp`, `hostmetrics`, `kubeletstats`, `filelog` (pod logs) | [collector-daemonset.yaml](helm/otel-operator/collector-daemonset.yaml)    |
+| **ECS Fargate**     | Sidecar container             | `otlp`, `awsecscontainermetrics`                            | [otel-agent-fargate.yaml](configs/otel-agent-fargate.yaml)                 |
+| **ECS EC2 Linux**   | ECS daemon task               | `otlp`, `hostmetrics`, `filelog`, `docker_stats`            | [otel-agent-linux.yaml](configs/otel-agent-linux.yaml)                     |
+| **ECS EC2 Windows** | Windows Service (MSI)         | `otlp`, `hostmetrics`, `windowseventlog`, `iis`             | [otel-agent-windows.yaml](configs/otel-agent-windows.yaml)                 |
+| **EC2 Linux**       | systemd service               | `otlp`, `hostmetrics`, `filelog`, `syslog`                  | [otel-agent-linux.yaml](configs/otel-agent-linux.yaml)                     |
+| **EC2 Windows**     | Windows Service (MSI)         | `otlp`, `hostmetrics`, `windowseventlog`, `iis`             | [otel-agent-windows.yaml](configs/otel-agent-windows.yaml)                 |
+| **On-prem Linux**   | systemd (via Ansible)         | `otlp`, `hostmetrics`, `filelog`, `syslog`                  | [otel-agent-linux.yaml.j2](ansible/templates/otel-agent-linux.yaml.j2)     |
+| **On-prem Windows** | Windows Service (via Ansible) | `otlp`, `hostmetrics`, `windowseventlog`, `iis`             | [otel-agent-windows.yaml.j2](ansible/templates/otel-agent-windows.yaml.j2) |
 
 ---
 
@@ -479,9 +488,9 @@ All three signals are linked in Grafana, enabling seamless drill-down:
 Add annotations to pod specs — **no code changes required**:
 
 ```yaml
-instrumentation.opentelemetry.io/inject-java: "true"      # Java
-instrumentation.opentelemetry.io/inject-dotnet: "true"     # .NET Core
-instrumentation.opentelemetry.io/inject-nodejs: "true"     # Node.js
+instrumentation.opentelemetry.io/inject-java: "true" # Java
+instrumentation.opentelemetry.io/inject-dotnet: "true" # .NET Core
+instrumentation.opentelemetry.io/inject-nodejs: "true" # Node.js
 ```
 
 The OTel Operator ([helm/otel-operator/instrumentation.yaml](helm/otel-operator/instrumentation.yaml)) automatically injects the language-specific agent at pod startup.
@@ -490,15 +499,16 @@ The OTel Operator ([helm/otel-operator/instrumentation.yaml](helm/otel-operator/
 
 Set environment variables in task definitions or service configs:
 
-| Language | Key Environment Variable |
-|---|---|
-| **Java** | `JAVA_TOOL_OPTIONS=-javaagent:/opt/opentelemetry-javaagent.jar` |
-| **.NET Core** | `CORECLR_ENABLE_PROFILING=1` + `CORECLR_PROFILER=...` |
-| **Node.js** | `NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register` |
+| Language      | Key Environment Variable                                                    |
+| ------------- | --------------------------------------------------------------------------- |
+| **Java**      | `JAVA_TOOL_OPTIONS=-javaagent:/opt/opentelemetry-javaagent.jar`             |
+| **.NET Core** | `CORECLR_ENABLE_PROFILING=1` + `CORECLR_PROFILER=...`                       |
+| **Node.js**   | `NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register` |
 
 ### Legacy Apps (no code changes possible)
 
 Agent-only collection — no distributed tracing, but provides:
+
 - Host metrics (CPU, memory, disk, network) via `hostmetrics` receiver
 - Application log file parsing via `filelog` receiver
 - Windows Event Logs via `windowseventlog` receiver
@@ -511,12 +521,12 @@ Agent-only collection — no distributed tracing, but provides:
 
 Multi-tier sampling reduces trace storage by **~95–98%** while retaining all actionable data:
 
-| Traffic Type | Head Sampling (Agent) | Tail Sampling (Gateway) | Net Result |
-|---|---|---|---|
-| Error spans | 100% kept | 100% kept | **All errors kept** |
-| High latency (>1s) | 50% kept | 100% kept | **~50% kept** |
-| Normal traffic | 5% kept | 2% kept | **~0.1% kept** |
-| Health checks | 0% (dropped) | N/A | **Dropped** |
+| Traffic Type       | Head Sampling (Agent) | Tail Sampling (Gateway) | Net Result          |
+| ------------------ | --------------------- | ----------------------- | ------------------- |
+| Error spans        | 100% kept             | 100% kept               | **All errors kept** |
+| High latency (>1s) | 50% kept              | 100% kept               | **~50% kept**       |
+| Normal traffic     | 5% kept               | 2% kept                 | **~0.1% kept**      |
+| Health checks      | 0% (dropped)          | N/A                     | **Dropped**         |
 
 **Head sampling** at the agent reduces volume before it leaves the host. **Tail sampling** at the gateway makes decisions based on complete trace data (error status, duration), ensuring high-value traces are always retained.
 
@@ -526,23 +536,24 @@ Multi-tier sampling reduces trace storage by **~95–98%** while retaining all a
 
 Alert rules ([configs/alert-rules.yaml](configs/alert-rules.yaml)) cover four categories:
 
-| Category | Alert | Condition |
-|---|---|---|
-| **Service Health** | HighErrorRate | Error rate > 5% for 5m |
-| | HighLatencyP99 | P99 latency > 2s for 5m |
-| | TrafficDrop | Traffic dropped > 90% vs 1h ago |
-| **Infrastructure** | HighCPU | CPU > 90% for 10m |
-| | HighMemory | Memory > 90% for 10m |
-| | DiskSpaceLow/Critical | Disk > 85% / 95% |
-| **OTel Pipeline** | OTelAgentDown | Agent unreachable for 5m |
-| | GatewayHighQueueUsage | Exporter queue > 80% capacity |
-| | GatewayExportFailures | Failed span exports |
-| | GatewayHighDropRate | Dropping > 10% of spans |
-| **LGTM Backend** | MimirIngesterUnhealthy | Unhealthy ring members |
-| | LokiIngestionRateHigh | Ingestion > 50 MB/s |
-| | TempoCompactorNotRunning | No compaction in 2h |
+| Category           | Alert                    | Condition                       |
+| ------------------ | ------------------------ | ------------------------------- |
+| **Service Health** | HighErrorRate            | Error rate > 5% for 5m          |
+|                    | HighLatencyP99           | P99 latency > 2s for 5m         |
+|                    | TrafficDrop              | Traffic dropped > 90% vs 1h ago |
+| **Infrastructure** | HighCPU                  | CPU > 90% for 10m               |
+|                    | HighMemory               | Memory > 90% for 10m            |
+|                    | DiskSpaceLow/Critical    | Disk > 85% / 95%                |
+| **OTel Pipeline**  | OTelAgentDown            | Agent unreachable for 5m        |
+|                    | GatewayHighQueueUsage    | Exporter queue > 80% capacity   |
+|                    | GatewayExportFailures    | Failed span exports             |
+|                    | GatewayHighDropRate      | Dropping > 10% of spans         |
+| **LGTM Backend**   | MimirIngesterUnhealthy   | Unhealthy ring members          |
+|                    | LokiIngestionRateHigh    | Ingestion > 50 MB/s             |
+|                    | TempoCompactorNotRunning | No compaction in 2h             |
 
 **Routing** ([configs/alertmanager.yaml](configs/alertmanager.yaml)):
+
 - Critical → PagerDuty (10s group wait, 1h repeat)
 - Warning → Slack `#obs-alerts-warning`
 - Infrastructure → Slack `#obs-alerts-infra`
@@ -554,12 +565,12 @@ Alert rules ([configs/alert-rules.yaml](configs/alert-rules.yaml)) cover four ca
 
 ### Monthly Infrastructure Costs (AWS us-east-1, self-hosted)
 
-| Category | Components | Monthly Cost |
-|---|---|---|
-| **LGTM Compute (EKS)** | Mimir (ingesters, distributors, compactor, queriers), Loki (write/read/backend), Tempo (ingesters, distributors, queriers, compactor), Grafana, OTel Gateway | **~$2,300** |
-| **Storage (S3 + EBS)** | S3 Standard (~2 TB), S3 IA (~4 TB), S3 Glacier (~8 TB), EBS gp3 PVs | **~$410** |
-| **Networking** | NAT Gateway, Direct Connect transfer, internal NLB | **~$130** |
-| **Total** | | **~$2,840/mo** |
+| Category               | Components                                                                                                                                                   | Monthly Cost   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| **LGTM Compute (EKS)** | Mimir (ingesters, distributors, compactor, queriers), Loki (write/read/backend), Tempo (ingesters, distributors, queriers, compactor), Grafana, OTel Gateway | **~$2,300**    |
+| **Storage (S3 + EBS)** | S3 Standard (~2 TB), S3 IA (~4 TB), S3 Glacier (~8 TB), EBS gp3 PVs                                                                                          | **~$410**      |
+| **Networking**         | NAT Gateway, Direct Connect transfer, internal NLB                                                                                                           | **~$130**      |
+| **Total**              |                                                                                                                                                              | **~$2,840/mo** |
 
 > With 1-year Reserved Instances or Savings Plans: **~$1,900/mo** (~33% savings).
 
@@ -581,11 +592,11 @@ Self-hosted LGTM is **2–8x cheaper** than managed alternatives at this scale, 
 
 The entire platform is defined as code using three tools:
 
-| Tool | Scope | Key Files |
-|---|---|---|
+| Tool          | Scope                                                                              | Key Files                |
+| ------------- | ---------------------------------------------------------------------------------- | ------------------------ |
 | **Terraform** | AWS infrastructure (VPC, EKS, S3, IAM, NLB, Route53, EC2 user data, ECS task defs) | [terraform/](terraform/) |
-| **Helm** | Kubernetes workloads (LGTM stack, OTel Operator, Gateway) | [helm/](helm/) |
-| **Ansible** | On-prem agent deployment (Linux systemd + Windows MSI) | [ansible/](ansible/) |
+| **Helm**      | Kubernetes workloads (LGTM stack, OTel Operator, Gateway)                          | [helm/](helm/)           |
+| **Ansible**   | On-prem agent deployment (Linux systemd + Windows MSI)                             | [ansible/](ansible/)     |
 
 ### Key IaC Patterns
 
