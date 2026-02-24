@@ -211,6 +211,10 @@ LGTM + OTel apps use **multi-source** (Helm chart from upstream + values from th
 
 **Talking point**: "All deployment configuration lives in git. ArgoCD visualizes live state and detects drift — if someone changes something in the cluster that doesn't match git, it auto-heals back."
 
+<p align="center">
+  <img src="../docs/screenshots/argocd.png" width="800" alt="ArgoCD showing 9 application tiles — Mimir, Loki, Tempo, Grafana, OTel Operator, OTel Gateway, Cluster Autoscaler, legacy-lamp, load-gen — all Healthy and Synced">
+</p>
+
 ---
 
 ## Step 6 — Access Grafana
@@ -222,6 +226,10 @@ kubectl -n observability port-forward svc/grafana 3000:80
 Open <http://localhost:3000> — Login: `admin` / `demo-admin-2025`
 
 Verify datasources: **Settings > Data Sources** — Mimir, Loki, and Tempo should all show green.
+
+<p align="center">
+  <img src="../docs/screenshots/Grafana Metrics.png" width="800" alt="Grafana Metrics explorer showing container and Go runtime metrics from Mimir">
+</p>
 
 ---
 
@@ -248,6 +256,10 @@ frontend (GET /)
 ```
 
 **Talking point**: "This distributed trace was captured automatically — no code changes to any of the 3 services. The OTel Operator injected the Node.js SDK at pod startup."
+
+<p align="center">
+  <img src="../docs/screenshots/Grafana Traces.png" width="800" alt="Grafana Tempo trace view showing auto-instrumented Node.js frontend → product-api → inventory span waterfall">
+</p>
 
 ### 7b. Logs with Trace Context (Loki)
 
@@ -403,6 +415,10 @@ kubectl get instrumentation -A
 ```
 
 **Talking point**: "Everything is code — no manual console clicks. This repo can be cloned, `terraform.tfvars` configured, and `make deploy-all` gives you the full stack. All changes are peer-reviewed PRs."
+
+<p align="center">
+  <img src="../docs/screenshots/k9s.png" width="800" alt="k9s terminal view showing all pods Running across observability, nodejs-app, legacy-lamp, load-gen, and kube-system namespaces">
+</p>
 
 ---
 

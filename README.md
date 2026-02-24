@@ -9,6 +9,7 @@ A vendor-neutral, production-grade observability platform providing **metrics, l
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Screenshots](#screenshots--stack-running-in-demo-mode)
 - [Why OpenTelemetry?](#why-opentelemetry)
 - [Why the Grafana LGTM Stack?](#why-the-grafana-lgtm-stack)
 - [The LGTM Stack In Depth](#the-lgtm-stack-in-depth)
@@ -56,6 +57,36 @@ A vendor-neutral, production-grade observability platform providing **metrics, l
 <p align="center">
   <img src="docs/diagrams/network_architecture.png" width="700" alt="VPC Network Layout — 3 AZs, public/private subnets, NLB, NAT, Direct Connect">
 </p>
+
+---
+
+## Screenshots — Stack Running in Demo Mode
+
+### ArgoCD — All Applications Healthy
+
+<p align="center">
+  <img src="docs/screenshots/argocd.png" width="800" alt="ArgoCD showing 9 application tiles — Mimir, Loki, Tempo, Grafana, OTel Operator, OTel Gateway, Cluster Autoscaler, legacy-lamp, load-gen — all Healthy and Synced">
+</p>
+
+### Grafana — Distributed Trace Waterfall (Tempo)
+
+<p align="center">
+  <img src="docs/screenshots/Grafana Traces.png" width="800" alt="Grafana Tempo trace view showing auto-instrumented Node.js frontend → product-api → inventory span waterfall">
+</p>
+
+### Grafana — Metrics Explorer (Mimir)
+
+<p align="center">
+  <img src="docs/screenshots/Grafana Metrics.png" width="800" alt="Grafana Metrics explorer showing container and Go runtime metrics from Mimir">
+</p>
+
+### Kubernetes — All Pods Running (k9s)
+
+<p align="center">
+  <img src="docs/screenshots/k9s.png" width="800" alt="k9s terminal view showing all pods Running across observability, nodejs-app, legacy-lamp, load-gen, and kube-system namespaces">
+</p>
+
+---
 
 The platform follows a **three-layer architecture**:
 

@@ -57,6 +57,19 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: mysqld-exporter-config
+  namespace: legacy-lamp
+data:
+  .my.cnf: |
+    [client]
+    user=app
+    password=app-secret
+    host=mysql
+    port=3306
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: mysql-init
   namespace: legacy-lamp
 data:
@@ -261,11 +274,12 @@ spec:
         # Container 2: mysqld-exporter — MySQL metrics on :9104
         - name: mysqld-exporter
           image: prom/mysqld-exporter:v0.15.1
-          env:
-            - name: DATA_SOURCE_NAME
-              value: "app:app-secret@(mysql:3306)/guestbook"
+          args: [--config.my-cnf=/etc/mysqld-exporter/.my.cnf]
           ports:
             - containerPort: 9104
+          volumeMounts:
+            - name: mysqld-exporter-config
+              mountPath: /etc/mysqld-exporter
           resources:
             limits:
               memory: 64Mi
@@ -298,3 +312,6 @@ spec:
             name: lamp-otel-config
         - name: logs
           emptyDir: {}
+        - name: mysqld-exporter-config
+          configMap:
+            name: mysqld-exporter-config
